@@ -63,10 +63,10 @@ app.get('/', (c) => {
     <link rel="icon" href="https://www.liveling.top/upload/ChatGPT%20Image%202026%E5%B9%B46%E6%9C%8823%E6%97%A5%2016_02_32.png">
     <style>
         :root {
-            --primary: #6366f1;
-            --primary-light: #818cf8;
-            --primary-dark: #4f46e5;
-            --primary-bg: rgba(99,102,241,0.07);
+            --primary: #50A8D0;
+            --primary-light: #B7E7FF;
+            --primary-dark: #3D93B8;
+            --primary-bg: rgba(183,231,255,0.15);
             --success: #10b981;
             --success-bg: rgba(16,185,129,0.07);
             --warning: #f59e0b;
@@ -123,10 +123,12 @@ app.get('/', (c) => {
         .badges img { height: 22px; }
         .container { max-width: 960px; width: 100%; padding: 0 24px; margin-top: -32px; position: relative; z-index: 2; }
         .card {
-            background: var(--bg-card);
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-md);
-            border: 1px solid var(--border);
+            border: 1px solid rgba(255,255,255,0.3);
             padding: 28px 32px;
             margin-bottom: 20px;
             animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.4s both;

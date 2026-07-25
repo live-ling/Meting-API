@@ -42,7 +42,7 @@ export async function sendEmailNotification(data) {
 
         const html = `
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f8f9fa;border-radius:12px;">
-  <div style="background:#6366f1;color:#fff;padding:16px 20px;border-radius:8px;margin-bottom:20px;">
+  <div style="background:#50A8D0;color:#fff;padding:16px 20px;border-radius:8px;margin-bottom:20px;">
     <h2 style="margin:0;font-size:18px;">${data.title}</h2>
     <p style="margin:4px 0 0;font-size:13px;opacity:0.85;">优先级: ${'★'.repeat(data.priority)}</p>
   </div>

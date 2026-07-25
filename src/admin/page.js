@@ -8,11 +8,11 @@ const getAdminHtml = () => `<!DOCTYPE html>
     <link rel="icon" href="https://www.liveling.top/upload/ChatGPT%20Image%202026%E5%B9%B46%E6%9C%8823%E6%97%A5%2016_02_32.png">
     <style>
         :root {
-            --primary: #6366f1;
-            --primary-light: #818cf8;
-            --primary-dark: #4f46e5;
-            --primary-bg: rgba(99,102,241,0.07);
-            --primary-border: rgba(99,102,241,0.2);
+            --primary: #50A8D0;
+            --primary-light: #B7E7FF;
+            --primary-dark: #3D93B8;
+            --primary-bg: rgba(183,231,255,0.15);
+            --primary-border: rgba(183,231,255,0.3);
             --success: #10b981;
             --success-bg: rgba(16,185,129,0.07);
             --warning: #f59e0b;
@@ -69,34 +69,17 @@ const getAdminHtml = () => `<!DOCTYPE html>
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-            background-size: 200% 200%;
-            animation: gradientShift 8s ease infinite;
+            background: url('https://www.liveling.top/upload/ChatGPT%20Image%202026%E5%B9%B46%E6%9C%8823%E6%97%A5%2016_10_51.png') center/cover no-repeat fixed;
             padding: 20px;
             position: relative;
             overflow: hidden;
         }
-        .login-container::before {
-            content: '';
-            position: absolute;
-            width: 500px;
-            height: 500px;
-            background: rgba(255,255,255,0.08);
-            border-radius: 50%;
-            top: -150px;
-            right: -100px;
-            animation: float 6s ease-in-out infinite;
-        }
         .login-container::after {
             content: '';
             position: absolute;
-            width: 300px;
-            height: 300px;
-            background: rgba(255,255,255,0.05);
-            border-radius: 50%;
-            bottom: -80px;
-            left: -60px;
-            animation: float 8s ease-in-out infinite reverse;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 0;
         }
 
         .login-box {
