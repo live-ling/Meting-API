@@ -4,6 +4,30 @@ import { validateCookie } from './cookie-validator.js'
 import cookieMonitor from './cookie-monitor.js'
 import { banIP, unbanIP, resetIPRecord, getAbuseStats } from '../middleware/abuse-detector.js'
 import apiLogger from '../service/api-logger.js'
+import fs from 'fs'
+import path from 'path'
+
+const DATA_DIR = process.env.DATA_DIR || './data'
+const PUBLIC_TOKEN_FILE = path.join(DATA_DIR, 'public_token.json')
+
+const getPublicToken = () => {
+    try {
+        if (fs.existsSync(PUBLIC_TOKEN_FILE)) {
+            const data = JSON.parse(fs.readFileSync(PUBLIC_TOKEN_FILE, 'utf-8'))
+            return data.token || ''
+        }
+    } catch (_) {}
+    return ''
+}
+
+const savePublicToken = (token) => {
+    try {
+        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+        fs.writeFileSync(PUBLIC_TOKEN_FILE, JSON.stringify({ token, updatedAt: new Date().toISOString() }))
+        return true
+    } catch (_) {}
+    return false
+}
 
 const formatCookieForDisplay = (cookie) => {
     const { id, platform, note, createdAt, updatedAt, createdBy, isActive, isValid, validatedAt, userInfo, validationError } = cookie
@@ -299,6 +323,37 @@ export const adminRoutes = (app) => {
         }
     })
 
+    // ============ SMTP 邮件通知 ============
+
+    app.get('/admin/smtp', authMiddleware, adminMiddleware, async (c) => {
+        const config = store.getSmtpConfig()
+        return c.json({ success: true, data: config })
+    })
+
+    app.put('/admin/smtp', authMiddleware, adminMiddleware, async (c) => {
+        const body = await c.req.json()
+        const operator = c.get('username')
+
+        const result = await store.setSmtpConfig(body, operator)
+
+        if (result.success) {
+            return c.json(result)
+        } else {
+            return c.json(result, 400)
+        }
+    })
+
+    app.post('/admin/smtp/test', authMiddleware, adminMiddleware, async (c) => {
+        const { testEmail } = await import('./email-notifier.js')
+        const result = await testEmail()
+
+        if (result.sent) {
+            return c.json({ success: true, message: '测试邮件已发送' })
+        } else {
+            return c.json({ success: false, error: result.error || '发送失败' }, 400)
+        }
+    })
+
     app.get('/admin/monitor', authMiddleware, adminMiddleware, async (c) => {
         const config = store.getMonitorConfig()
         return c.json({ success: true, data: config })
@@ -569,6 +624,25 @@ export const adminRoutes = (app) => {
                 'Content-Disposition': `attachment; filename="api-logs-${new Date().toISOString().slice(0, 10)}.csv"`,
             }
         })
+    })
+
+    // === 公开统计 Token 管理 ===
+    app.get('/admin/public-token', authMiddleware, async (c) => {
+        return c.json({ success: true, data: { token: getPublicToken() } })
+    })
+
+    app.post('/admin/public-token', authMiddleware, adminMiddleware, async (c) => {
+        const body = await c.req.json()
+        const { token } = body
+        if (!token || typeof token !== 'string') {
+            return c.json({ success: false, error: 'Token 不能为空' }, 400)
+        }
+        const ok = savePublicToken(token.trim())
+        if (ok) {
+            await store.addLog('public_token_update', '更新公开统计Token', c.get('username'))
+            return c.json({ success: true, message: 'Token 已保存' })
+        }
+        return c.json({ success: false, error: '存储失败' }, 500)
     })
 }
 

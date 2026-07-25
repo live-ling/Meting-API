@@ -1,9 +1,11 @@
+import { icon } from '../icons.js'
 const getAdminHtml = () => `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meting-API 管理后台</title>
+    <link rel="icon" href="https://www.liveling.top/upload/ChatGPT%20Image%202026%E5%B9%B46%E6%9C%8823%E6%97%A5%2016_02_32.png">
     <style>
         :root {
             --primary: #6366f1;
@@ -44,6 +46,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        .icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; flex-shrink: 0; }
 
         html { scroll-behavior: smooth; }
 
@@ -746,7 +749,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
 <body>
     <div class="login-container" id="loginContainer">
         <div class="login-box" id="loginBox">
-            <h1>🎵 Meting-API</h1>
+            <h1>Meting-API</h1>
             <p class="login-subtitle">管理后台登录</p>
             <form id="loginForm">
                 <div class="form-group">
@@ -762,7 +765,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
             </form>
         </div>
         <div class="login-box" id="twoFactorBox" style="display:none;">
-            <h1>🔐 双因素认证</h1>
+            <h1>${icon('lock')} 双因素认证</h1>
             <p class="login-subtitle">请输入认证器中的验证码</p>
             <form id="twoFactorForm">
                 <input type="hidden" id="twoFactorUsername">
@@ -780,19 +783,19 @@ const getAdminHtml = () => `<!DOCTYPE html>
     <div class="admin-container" id="adminContainer">
         <div class="sidebar">
             <div class="sidebar-brand">
-                <h2>🎵 <span class="brand-text">Meting</span></h2>
+                <h2>${icon('music')} <span class="brand-text">Meting</span></h2>
                 <span class="brand-sub">管理后台</span>
             </div>
             <ul class="sidebar-menu">
-                <li class="active" data-section="dashboard"><span class="menu-icon">📊</span><span class="menu-text">仪表盘</span></li>
-                <li data-section="cookies"><span class="menu-icon">🍪</span><span class="menu-text">Cookie管理</span></li>
-                <li data-section="monitor"><span class="menu-icon">🔔</span><span class="menu-text">Cookie监测</span></li>
-                <li data-section="tokens"><span class="menu-icon">🔑</span><span class="menu-text">API Token</span></li>
-                <li data-section="abuse"><span class="menu-icon">🛡️</span><span class="menu-text">滥用防护</span></li>
-                <li data-section="users"><span class="menu-icon">👥</span><span class="menu-text">用户管理</span></li>
-                <li data-section="logs"><span class="menu-icon">📋</span><span class="menu-text">操作日志</span></li>
-                <li data-section="apilogs"><span class="menu-icon">📡</span><span class="menu-text">API调用日志</span></li>
-                <li data-section="settings"><span class="menu-icon">⚙️</span><span class="menu-text">设置</span></li>
+                <li class="active" data-section="dashboard"><span class="menu-icon">${icon('dashboard')}</span><span class="menu-text">仪表盘</span></li>
+                <li data-section="cookies"><span class="menu-icon">${icon('cookie')}</span><span class="menu-text">Cookie管理</span></li>
+                <li data-section="monitor"><span class="menu-icon">${icon('bell')}</span><span class="menu-text">Cookie监测</span></li>
+                <li data-section="tokens"><span class="menu-icon">${icon('key')}</span><span class="menu-text">API Token</span></li>
+                <li data-section="abuse"><span class="menu-icon">${icon('shield')}</span><span class="menu-text">滥用防护</span></li>
+                <li data-section="users"><span class="menu-icon">${icon('users')}</span><span class="menu-text">用户管理</span></li>
+                <li data-section="logs"><span class="menu-icon">${icon('list')}</span><span class="menu-text">操作日志</span></li>
+                <li data-section="apilogs"><span class="menu-icon">${icon('radio')}</span><span class="menu-text">API调用日志</span></li>
+                <li data-section="settings"><span class="menu-icon">${icon('settings')}</span><span class="menu-text">设置</span></li>
             </ul>
         </div>
         <div class="main-content">
@@ -810,22 +813,22 @@ const getAdminHtml = () => `<!DOCTYPE html>
                 <div class="content-section active" id="dashboardSection">
                     <div class="stats-grid">
                         <div class="stat-card blue">
-                            <div class="stat-icon blue">🍪</div>
+                            <div class="stat-icon blue">${icon('cookie')}</div>
                             <div class="stat-value" id="totalCookies">0</div>
                             <div class="stat-label">Cookie总数</div>
                         </div>
                         <div class="stat-card green">
-                            <div class="stat-icon green">✓</div>
+                            <div class="stat-icon green">${icon('check')}</div>
                             <div class="stat-value" id="validCookies">0</div>
                             <div class="stat-label">有效Cookie</div>
                         </div>
                         <div class="stat-card orange">
-                            <div class="stat-icon orange">👥</div>
+                            <div class="stat-icon orange">${icon('users')}</div>
                             <div class="stat-value" id="totalUsers">0</div>
                             <div class="stat-label">用户总数</div>
                         </div>
                         <div class="stat-card red">
-                            <div class="stat-icon red">📋</div>
+                            <div class="stat-icon red">${icon('list')}</div>
                             <div class="stat-value" id="totalLogs">0</div>
                             <div class="stat-label">操作记录</div>
                         </div>
@@ -939,6 +942,50 @@ const getAdminHtml = () => `<!DOCTYPE html>
                     </div>
 
                     <div class="card">
+                        <div class="card-header"><span class="card-title">SMTP邮件通知</span></div>
+                        <form id="smtpForm" style="max-width: 600px;">
+                            <div class="form-group">
+                                <label class="checkbox-label"><input type="checkbox" id="smtpEnabled"> 启用邮件通知</label>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="flex:2;">
+                                    <label>SMTP服务器</label>
+                                    <input type="text" id="smtpHost" placeholder="smtp.example.com">
+                                </div>
+                                <div class="form-group" style="flex:1;">
+                                    <label>端口</label>
+                                    <input type="number" id="smtpPort" placeholder="465">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label"><input type="checkbox" id="smtpSecure" checked> 使用SSL/TLS加密</label>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="flex:1;">
+                                    <label>发件人邮箱</label>
+                                    <input type="email" id="smtpFrom" placeholder="noreply@example.com">
+                                </div>
+                                <div class="form-group" style="flex:1;">
+                                    <label>用户名</label>
+                                    <input type="text" id="smtpUser" placeholder="noreply@example.com">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>密码/授权码</label>
+                                <input type="password" id="smtpPass" placeholder="SMTP授权码（非邮箱密码）" autocomplete="new-password">
+                            </div>
+                            <div class="form-group">
+                                <label>收件人邮箱</label>
+                                <input type="text" id="smtpTo" placeholder="admin@example.com（多个用逗号分隔）">
+                            </div>
+                            <div class="form-row">
+                                <button type="submit" class="btn btn-primary">保存SMTP</button>
+                                <button type="button" class="btn btn-default" onclick="testSmtp()">发送测试邮件</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card">
                         <div class="card-header"><span class="card-title">监测历史</span></div>
                         <div class="table-container">
                             <table class="table">
@@ -979,7 +1026,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                 <!-- API调用日志 -->
                 <div class="content-section" id="apilogsSection">
                     <div class="card">
-                        <div class="card-header"><span class="card-title">📡 API 调用日志</span></div>
+                        <div class="card-header"><span class="card-title">${icon('radio')} API 调用日志</span></div>
                         <div class="stats-grid" id="apiLogStats">
                             <div class="stat-card"><div class="stat-label">总调用数</div><div class="stat-value" id="apiLogTotal">-</div></div>
                             <div class="stat-card"><div class="stat-label">24h 调用</div><div class="stat-value" id="apiLog24h">-</div></div>
@@ -1035,7 +1082,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                                 <input type="text" id="apiLogKeyword" placeholder="ID / 歌曲名">
                             </div>
                             <div class="form-group" style="display:flex;gap:8px;align-items:flex-end;">
-                                <button class="btn btn-primary" onclick="loadApiLogs(1)" style="margin-top:auto;">🔍 查询</button>
+                                <button class="btn btn-primary" onclick="loadApiLogs(1)" style="margin-top:auto;">${icon('search')} 查询</button>
                                 <button class="btn btn-default" onclick="resetApiLogFilters()" style="margin-top:auto;">重置</button>
                             </div>
                         </div>
@@ -1044,8 +1091,8 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                             <span style="color:var(--text-secondary);font-size:13px;">共 <b id="apiLogTotalCount">0</b> 条记录，第 <b id="apiLogCurrentPage">1</b>/<b id="apiLogTotalPages">1</b> 页</span>
                             <div style="display:flex;gap:8px;">
-                                <button class="btn btn-default" onclick="exportApiLogs()">📥 导出 CSV</button>
-                                <button class="btn btn-danger" onclick="clearApiLogs()">🗑 清空日志</button>
+                                <button class="btn btn-default" onclick="exportApiLogs()">${icon('download')} 导出 CSV</button>
+                                <button class="btn btn-danger" onclick="clearApiLogs()">${icon('trash')} 清空日志</button>
                             </div>
                         </div>
                         <div class="table-container">
@@ -1067,7 +1114,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                 <div class="content-section" id="tokensSection">
                     <div class="card">
                         <div class="card-header">
-                            <h4>🔑 API Token 管理</h4>
+                            <h4>${icon('key')} API Token 管理</h4>
                             <button class="btn btn-primary" onclick="showTokenModal()">创建 Token</button>
                         </div>
                         <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;">API Token 用于程序化访问管理接口，使用 <code>Authorization: Bearer &lt;token&gt;</code> 请求头认证。</p>
@@ -1094,22 +1141,22 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         <div class="card-header"><span class="card-title">防护概览</span></div>
                         <div class="stats-grid" id="abuseStatsGrid">
                             <div class="stat-card blue">
-                                <div class="stat-icon blue">👁</div>
+                                <div class="stat-icon blue">${icon('eye')}</div>
                                 <div class="stat-value" id="abuseActiveRecords">0</div>
                                 <div class="stat-label">活跃监控</div>
                             </div>
                             <div class="stat-card red">
-                                <div class="stat-icon red">⛔</div>
+                                <div class="stat-icon red">${icon('ban')}</div>
                                 <div class="stat-value" id="abuseBannedCount">0</div>
                                 <div class="stat-label">封禁 IP</div>
                             </div>
                             <div class="stat-card orange">
-                                <div class="stat-icon orange">⚠</div>
+                                <div class="stat-icon orange">${icon('warning')}</div>
                                 <div class="stat-value" id="abuseRecentBlocked">0</div>
                                 <div class="stat-label">最近拦截</div>
                             </div>
                             <div class="stat-card green">
-                                <div class="stat-icon green">📋</div>
+                                <div class="stat-icon green">${icon('list')}</div>
                                 <div class="stat-value" id="abuseTotalLogs">0</div>
                                 <div class="stat-label">日志总数</div>
                             </div>
@@ -1184,7 +1231,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                                 <label>封禁原因（可选）</label>
                                 <input type="text" id="banReasonInput" placeholder="简要说明封禁原因">
                             </div>
-                            <button type="submit" class="btn btn-danger">⛔ 封禁此 IP</button>
+                            <button type="submit" class="btn btn-danger">${icon('ban')} 封禁此 IP</button>
                         </form>
                         <div class="table-container">
                             <table class="table">
@@ -1221,7 +1268,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                 <div class="content-section" id="settingsSection">
                     <div class="settings-grid">
                         <div class="card settings-section">
-                            <h4>👤 个人设置</h4>
+                            <h4>${icon('user')} 个人设置</h4>
                             <form id="profileForm">
                                 <div class="form-group">
                                     <label>当前用户名</label>
@@ -1236,7 +1283,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         </div>
 
                         <div class="card settings-section">
-                            <h4>🔒 修改密码</h4>
+                            <h4>${icon('lockKey')} 修改密码</h4>
                             <form id="changePasswordForm">
                                 <div class="form-group">
                                     <label>旧密码</label>
@@ -1255,7 +1302,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         </div>
 
                         <div class="card settings-section" id="adminPathSection">
-                            <h4>🛡️ 安全设置</h4>
+                            <h4>${icon('shield')} 安全设置</h4>
                             <form id="adminPathForm">
                                 <div class="form-group">
                                     <label>管理后台路径</label>
@@ -1267,7 +1314,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         </div>
 
                         <div class="card settings-section" id="twoFactorSection">
-                            <h4>🔐 双因素认证</h4>
+                            <h4>${icon('lock')} 双因素认证</h4>
                             <div id="twoFactorDisabled">
                                 <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;">双因素认证可为您的账户提供额外安全保障，启用后登录时需要输入验证码。</p>
                                 <button type="button" class="btn btn-primary" onclick="startSetup2FA()">启用双因素认证</button>
@@ -1317,7 +1364,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         <label class="checkbox-label"><input type="checkbox" id="cookieActive" checked> 启用此Cookie</label>
                     </div>
                 </form>
-                <span class="help-link" onclick="toggleCookieHelp()">❓ 如何获取Cookie？</span>
+                <span class="help-link" onclick="toggleCookieHelp()">${icon('help')} 如何获取Cookie？</span>
                 <div class="help-content" id="cookieHelpContent">
                     <div class="help-section">
                         <h4>网易云音乐 Cookie 获取方法：</h4>
@@ -1386,7 +1433,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
     <div class="modal" id="twoFactorSetupModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>🔐 设置双因素认证</h3>
+                <h3>${icon('lock')} 设置双因素认证</h3>
                 <button class="modal-close" onclick="closeModal('twoFactorSetupModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -1416,7 +1463,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                     </form>
                 </div>
                 <div id="twoFactorStep3" style="display:none;">
-                    <h4 style="margin-bottom:12px;font-size:15px;color:var(--success);">✓ 双因素认证已启用</h4>
+                    <h4 style="margin-bottom:12px;font-size:15px;color:var(--success);">${icon('check')} 双因素认证已启用</h4>
                     <p style="color:var(--text-secondary);font-size:13px;">您的账户现在受到额外保护，每次登录时都需要输入验证码。</p>
                 </div>
             </div>
@@ -1475,7 +1522,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
     <div class="modal" id="tokenShowModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>✅ Token 已创建</h3>
+                <h3>${icon('success')} Token 已创建</h3>
                 <button class="modal-close" onclick="closeModal('tokenShowModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -1534,7 +1581,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
         const showToast = (message, type = 'success') => {
             const toast = document.createElement('div');
             toast.className = 'toast toast-' + type;
-            toast.textContent = (type === 'success' ? '✓ ' : '✗ ') + message;
+            toast.innerHTML = (type === 'success' ? '${icon('check')} ' : '${icon('xmark')} ') + message;
             document.body.appendChild(toast);
             setTimeout(() => {
                 toast.style.opacity = '0';
@@ -1796,16 +1843,16 @@ const getAdminHtml = () => `<!DOCTYPE html>
             if (!res?.success) return;
             const tbody = document.getElementById('cookiesList');
             if (res.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="empty-state-icon">🍪</div><div class="empty-state-text">暂无Cookie数据</div></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="empty-state-icon">${icon('cookie')}</div><div class="empty-state-text">暂无Cookie数据</div></td></tr>';
                 return;
             }
             tbody.innerHTML = res.data.map(cookie => {
                 let vipAbilityText = '';
                 if (cookie.userInfo) {
                     if (cookie.userInfo.canPlayVip) {
-                        vipAbilityText = '<span style="color:var(--success);">✓ 可播放VIP音乐</span>';
+                        vipAbilityText = '<span style="color:var(--success);">${icon('check')} 可播放VIP音乐</span>';
                     } else {
-                        vipAbilityText = '<span style="color:var(--danger);">✗ 不可播放VIP音乐</span>';
+                        vipAbilityText = '<span style="color:var(--danger);">${icon('xmark')} 不可播放VIP音乐</span>';
                     }
                 }
                 return '<tr>' +
@@ -1960,7 +2007,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
             if (!res?.success) return;
             const tbody = document.getElementById('tokensList');
             if (res.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="empty-state-icon">🔑</div><div class="empty-state-text">暂无 API Token</div></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="empty-state-icon">${icon('key')}</div><div class="empty-state-text">暂无 API Token</div></td></tr>';
             } else {
                 tbody.innerHTML = res.data.map(token => {
                     const tokenPreview = token.id.substring(0, 8) + '...';
@@ -2019,10 +2066,11 @@ const getAdminHtml = () => `<!DOCTYPE html>
         };
 
         const loadMonitor = async () => {
-            const [statusRes, configRes, webhookRes, logsRes] = await Promise.all([
+            const [statusRes, configRes, webhookRes, smtpRes, logsRes] = await Promise.all([
                 api('/admin/monitor/status'),
                 api('/admin/monitor'),
                 api('/admin/webhook'),
+                api('/admin/smtp'),
                 api('/admin/monitor/logs?limit=50')
             ]);
             if (statusRes?.success) {
@@ -2050,10 +2098,20 @@ const getAdminHtml = () => `<!DOCTYPE html>
                     document.getElementById('webhookBodyTemplate').value = webhookRes.data.bodyTemplate;
                 }
             }
+            if (smtpRes?.success) {
+                document.getElementById('smtpEnabled').checked = smtpRes.data.enabled;
+                document.getElementById('smtpHost').value = smtpRes.data.host || '';
+                document.getElementById('smtpPort').value = smtpRes.data.port || 465;
+                document.getElementById('smtpSecure').checked = smtpRes.data.secure !== false;
+                document.getElementById('smtpFrom').value = smtpRes.data.from || '';
+                document.getElementById('smtpUser').value = smtpRes.data.user || '';
+                document.getElementById('smtpPass').value = smtpRes.data.pass || '';
+                document.getElementById('smtpTo').value = smtpRes.data.to || '';
+            }
             if (logsRes?.success) {
                 const tbody = document.getElementById('monitorLogsList');
                 if (logsRes.data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3" class="empty-state"><div class="empty-state-icon">🔔</div><div class="empty-state-text">暂无监测记录</div></td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="3" class="empty-state"><div class="empty-state-icon">${icon('bell')}</div><div class="empty-state-text">暂无监测记录</div></td></tr>';
                 } else {
                     tbody.innerHTML = logsRes.data.map(log => {
                         let typeText = '', typeClass = '';
@@ -2091,6 +2149,13 @@ const getAdminHtml = () => `<!DOCTYPE html>
             showToast('正在发送测试消息...', 'success');
             const res = await api('/admin/webhook/test', { method: 'POST' });
             if (res?.success) showToast('测试消息已发送');
+            else showToast(res?.error || '发送失败', 'error');
+        };
+
+        const testSmtp = async () => {
+            showToast('正在发送测试邮件...', 'success');
+            const res = await api('/admin/smtp/test', { method: 'POST' });
+            if (res?.success) showToast('测试邮件已发送,请检查收件箱');
             else showToast(res?.error || '发送失败', 'error');
         };
 
@@ -2294,6 +2359,23 @@ const getAdminHtml = () => `<!DOCTYPE html>
             if (headersStr) { try { headers = JSON.parse(headersStr); } catch { showToast('Headers JSON格式无效', 'error'); return; } }
             const res = await api('/admin/webhook', { method: 'PUT', body: JSON.stringify({ enabled, url, contentType, headers, bodyTemplate: bodyTemplateStr || undefined }) });
             if (res?.success) showToast('Webhook设置已保存');
+            else showToast(res?.error || '保存失败', 'error');
+        });
+
+        document.getElementById('smtpForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                enabled: document.getElementById('smtpEnabled').checked,
+                host: document.getElementById('smtpHost').value.trim(),
+                port: parseInt(document.getElementById('smtpPort').value) || 465,
+                secure: document.getElementById('smtpSecure').checked,
+                from: document.getElementById('smtpFrom').value.trim(),
+                user: document.getElementById('smtpUser').value.trim(),
+                pass: document.getElementById('smtpPass').value.trim(),
+                to: document.getElementById('smtpTo').value.trim()
+            };
+            const res = await api('/admin/smtp', { method: 'PUT', body: JSON.stringify(data) });
+            if (res?.success) showToast('SMTP设置已保存');
             else showToast(res?.error || '保存失败', 'error');
         });
 

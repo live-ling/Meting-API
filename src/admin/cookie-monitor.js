@@ -1,5 +1,6 @@
 import store from './store.js'
 import { validateCookie } from './cookie-validator.js'
+import { sendEmailNotification } from './email-notifier.js'
 
 class CookieMonitor {
     constructor() {
@@ -139,6 +140,13 @@ class CookieMonitor {
         })
 
         await this.sendWebhookNotification({
+            event: 'cookie_invalid',
+            title: `Cookie失效通知 - ${platformName}`,
+            message: `平台: ${platformName}\n备注: ${cookie.note || '无'}\n失效时间: ${new Date().toLocaleString('zh-CN')}\n原因: ${reason || 'Cookie已失效'}\n\n请及时更新Cookie以确保服务正常`,
+            priority: 5
+        })
+
+        sendEmailNotification({
             event: 'cookie_invalid',
             title: `Cookie失效通知 - ${platformName}`,
             message: `平台: ${platformName}\n备注: ${cookie.note || '无'}\n失效时间: ${new Date().toLocaleString('zh-CN')}\n原因: ${reason || 'Cookie已失效'}\n\n请及时更新Cookie以确保服务正常`,

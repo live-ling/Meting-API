@@ -58,7 +58,7 @@
 ### 手动部署
 
 ```bash
-git clone https://github.com/mikus-loli/Meting-API.git
+git clone https://github.com/live-ling/Meting-API.git
 cd Meting-API
 npm install
 node node.js
@@ -69,8 +69,8 @@ node node.js
 ### Docker 部署
 
 ```bash
-docker pull ghcr.io/mikus-loli/meting-api:latest
-docker run -d --name meting -p 3000:3000 ghcr.io/mikus-loli/meting-api:latest
+docker pull ghcr.io/live-ling/meting-api:latest
+docker run -d --name meting -p 3000:3000 ghcr.io/live-ling/meting-api:latest
 ```
 
 持久化数据：
@@ -79,7 +79,7 @@ docker run -d --name meting -p 3000:3000 ghcr.io/mikus-loli/meting-api:latest
 docker run -d --name meting \
   -p 3000:3000 \
   -v ./data:/app/data \
-  ghcr.io/mikus-loli/meting-api:latest
+  ghcr.io/live-ling/meting-api:latest
 ```
 
 自定义端口和用户：
@@ -91,12 +91,12 @@ docker run -d --name meting \
   -e UID=1000 \
   -e GID=1000 \
   -v ./data:/app/data \
-  ghcr.io/mikus-loli/meting-api:latest
+  ghcr.io/live-ling/meting-api:latest
 ```
 
 ### Vercel 部署
 
-<a href="https://vercel.com/import/project?template=https://github.com/mikus-loli/Meting-API"><img src="https://vercel.com/button" height="36"></a>
+<a href="https://vercel.com/import/project?template=https://github.com/live-ling/Meting-API"><img src="https://vercel.com/button" height="36"></a>
 
 点击按钮后按提示操作即可。Vercel 部署时 `OVERSEAS` 自动设为 `1`。
 
@@ -425,7 +425,7 @@ https://localhost:8099 {
 使用 `-v` 挂载数据目录：
 
 ```bash
-docker run -d -p 3000:3000 -v ./data:/app/data ghcr.io/mikus-loli/meting-api:latest
+docker run -d -p 3000:3000 -v ./data:/app/data ghcr.io/live-ling/meting-api:latest
 ```
 
 ### 忘记管理后台路径？

@@ -1,4 +1,5 @@
 import example from "./example.js"
+import { icon } from './icons.js'
 
 const platformNames = {
     netease: '网易云音乐',
@@ -16,8 +17,8 @@ const typeNames = {
 }
 
 const platformIcons = {
-    netease: '🎶',
-    tencent: '🎵'
+    netease: icon('music2'),
+    tencent: icon('music')
 }
 
 let html = `
@@ -49,6 +50,7 @@ let html = `
             --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        .icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; flex-shrink: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
             background: var(--bg);
@@ -174,7 +176,7 @@ let html = `
     <div class="header">
         <div class="header-inner">
             <div class="header-left">
-                <h1>🧪 API 测试</h1>
+                <h1>${icon('test')} API 测试</h1>
                 <span class="header-badge"><span class="status-dot"></span>在线</span>
             </div>
             <a class="back-link" href="/">← 返回首页</a>
@@ -194,7 +196,7 @@ Object.keys(example).map(provider => {
 
     html += `
         <div class="section-title">
-            <span class="platform-icon">${platformIcons[provider] || '🎵'}</span>
+            <span class="platform-icon">${platformIcons[provider] || icon('music')}</span>
             ${platformNames[provider] || provider}
         </div>
 `

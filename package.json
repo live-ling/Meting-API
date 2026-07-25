@@ -1,7 +1,7 @@
 {
   "name": "meting-backend-js",
   "version": "1.1.2",
-  "description": "",
+  "description": "多平台音乐 API 服务，支持网易云音乐和 QQ 音乐",
   "main": "node.js",
   "scripts": {
     "build:all": "node esbuild.config.js",
@@ -16,7 +16,11 @@
     "node": ">=18.0.0"
   },
   "type": "module",
-  "author": "xizeyoupan",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/live-ling/Meting-API.git"
+  },
+  "author": "live-ling",
   "license": "MIT",
   "devDependencies": {
     "esbuild-plugin-resolve": "^1.0.3",
@@ -31,7 +35,9 @@
     "crypto-browserify": "^3.12.0",
     "esbuild": "0.17.5",
     "hono": "^4.1.0",
+    "lucide-static": "^1.26.0",
     "nanoid": "^4.0.0",
+    "nodemailer": "^9.0.3",
     "qrcode": "^1.5.4"
   }
 }

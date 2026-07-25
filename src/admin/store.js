@@ -922,6 +922,31 @@ class DataStore {
         return { success: true, data: this.getWebhookConfig() }
     }
 
+    getSmtpConfig() {
+        return {
+            enabled: this.config.smtpEnabled || false,
+            host: this.config.smtpHost || '',
+            port: this.config.smtpPort || 465,
+            secure: this.config.smtpSecure !== false,
+            user: this.config.smtpUser || '',
+            pass: this.config.smtpPass || '',
+            from: this.config.smtpFrom || '',
+            to: this.config.smtpTo || ''
+        }
+    }
+
+    async setSmtpConfig(config, operator = 'system') {
+        const allowedKeys = ['enabled', 'host', 'port', 'secure', 'user', 'pass', 'from', 'to']
+        for (const key of allowedKeys) {
+            if (config[key] !== undefined) {
+                this.config['smtp' + key.charAt(0).toUpperCase() + key.slice(1)] = config[key]
+            }
+        }
+        await this.addLog('smtp_update', '更新SMTP邮件配置', operator)
+        await this.saveToFile()
+        return { success: true, data: this.getSmtpConfig() }
+    }
+
     isValidWebhookUrl(url) {
         try {
             const parsed = new URL(url)
