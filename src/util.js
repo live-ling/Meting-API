@@ -96,7 +96,7 @@ export const get_url = (ctx) => {
   let req_url = perfix ? perfix + getPathFromURL(ctx.req.url.split('?')[0]) : ctx.req.url.split('?')[0]
   if (!req_url.startsWith('http')) {
     const proto = ctx.req.header('X-Forwarded-Proto')
-    req_url = (proto ? proto : 'http') + '://' + req_url
+    req_url = (proto ? proto : 'https') + '://' + req_url
   }
   if (runtime === 'vercel') req_url = req_url.replace('http://', 'https://')
   return req_url
