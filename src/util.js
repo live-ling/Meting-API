@@ -92,12 +92,23 @@ export const get_runtime = () => {
 
 export const get_url = (ctx) => {
   const runtime = get_runtime()
-  const perfix = ctx.req.header('X-Forwarded-Host') || ctx.req.header('X-Forwarded-Url')
-  let req_url = perfix ? perfix + getPathFromURL(ctx.req.url.split('?')[0]) : ctx.req.url.split('?')[0]
-  if (!req_url.startsWith('http')) {
-    const proto = ctx.req.header('X-Forwarded-Proto')
-    req_url = (proto ? proto : 'https') + '://' + req_url
+  const proto = ctx.req.header('X-Forwarded-Proto')
+  const forwardedHost = ctx.req.header('X-Forwarded-Host')
+  const forwardedUrl = ctx.req.header('X-Forwarded-Url')
+  const path = getPathFromURL(ctx.req.url.split('?')[0])
+
+  if (forwardedUrl && /^https?:\/\//.test(forwardedUrl)) {
+    return forwardedUrl
   }
+
+  if (forwardedHost && /^https?:\/\//.test(forwardedHost)) {
+    return forwardedHost + path
+  }
+
+  const scheme = proto || 'https'
+  const host = forwardedHost || ctx.req.header('host') || ctx.req.url.split('/')[2]
+  let req_url = scheme + '://' + host + path
+
   if (runtime === 'vercel') req_url = req_url.replace('http://', 'https://')
   return req_url
 }
