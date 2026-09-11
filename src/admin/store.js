@@ -1140,6 +1140,7 @@ class DataStore {
             violations: logData.violations || [],
             userAgent: logData.userAgent || '',
             blocked: logData.blocked || false,
+            hitCount: logData.hitCount || 1,
             timestamp: Date.now(),
         }
         this.abuseLogs.push(log)
@@ -1154,6 +1155,14 @@ class DataStore {
 
     getAbuseLogs(limit = 100, offset = 0, filters = {}) {
         let logs = this.abuseLogs.slice().reverse()
+        if (filters.keyword) {
+            const kw = filters.keyword.toLowerCase()
+            logs = logs.filter(l =>
+                l.ip.includes(kw) ||
+                l.path.toLowerCase().includes(kw) ||
+                l.reason.toLowerCase().includes(kw)
+            )
+        }
         if (filters.ip) {
             logs = logs.filter(l => l.ip === filters.ip)
         }
@@ -1164,6 +1173,28 @@ class DataStore {
             logs = logs.filter(l => l.blocked === filters.blocked)
         }
         return logs.slice(offset, offset + limit)
+    }
+
+    getAbuseLogTotalCount(filters = {}) {
+        let logs = this.abuseLogs
+        if (filters.keyword) {
+            const kw = filters.keyword.toLowerCase()
+            logs = logs.filter(l =>
+                l.ip.includes(kw) ||
+                l.path.toLowerCase().includes(kw) ||
+                l.reason.toLowerCase().includes(kw)
+            )
+        }
+        if (filters.ip) {
+            logs = logs.filter(l => l.ip === filters.ip)
+        }
+        if (filters.level) {
+            logs = logs.filter(l => l.level === filters.level)
+        }
+        if (filters.blocked !== undefined) {
+            logs = logs.filter(l => l.blocked === filters.blocked)
+        }
+        return logs.length
     }
 
     async clearAbuseLogs(operator = 'system') {
@@ -1191,6 +1222,14 @@ class DataStore {
             bannedAt: now,
             expiresAt: permanent ? 0 : (now + (duration || 3600000)),
         })
+        await this.saveToFile()
+    }
+
+    // 滑动续期后同步到期时间（保留原封禁原因与违规记录）
+    async extendIpBan(ip, expiresAt) {
+        const ban = this.ipBans.get(ip)
+        if (!ban) return
+        ban.expiresAt = expiresAt
         await this.saveToFile()
     }
 

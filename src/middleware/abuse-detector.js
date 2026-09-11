@@ -1,4 +1,6 @@
 import store from '../admin/store.js'
+import appConfig from '../config.js'
+import { isValidAuth } from './auth.js'
 
 // 默认配置
 const DEFAULT_CONFIG = {
@@ -11,6 +13,9 @@ const DEFAULT_CONFIG = {
     ban: {
         threshold: 3,
         duration: 3600000,
+        // 封禁期内再次命中时滑动续期
+        extendOnHit: true,
+        extendMs: 600000,
     },
     rules: {
         rapidRequests: true,
@@ -84,6 +89,79 @@ const isWhitelisted = (path, ip, config) => {
     return false
 }
 
+// 持久化配置可能只保存了部分字段（历史版本的表单不含 whitelist 等），
+// 与默认配置深合并保证缺失字段回落到默认值
+const mergeConfig = (base, override) => {
+    const merged = { ...base }
+    for (const key of Object.keys(override || {})) {
+        const val = override[key]
+        const baseVal = base[key]
+        const bothPlainObject = val && baseVal &&
+            typeof val === 'object' && typeof baseVal === 'object' &&
+            !Array.isArray(val) && !Array.isArray(baseVal)
+        merged[key] = bothPlainObject ? mergeConfig(baseVal, val) : val
+    }
+    return merged
+}
+
+export const getEffectiveAbuseConfig = () => mergeConfig(DEFAULT_CONFIG, store.getAbuseConfig())
+
+// 管理后台路径前缀：该前缀下的请求不做封禁拦截，保证被封禁的管理员
+// 仍能打开登录页自助解封；未认证请求由 401 与登录失败锁定兜底
+const getAdminPrefix = () => {
+    try {
+        return '/' + (store.getAdminPath() || appConfig.ADMIN_PATH || 'admin')
+    } catch {
+        return '/admin'
+    }
+}
+
+const isAdminPath = (path) => {
+    const prefix = getAdminPrefix()
+    return path === prefix || path.startsWith(prefix + '/')
+}
+
+// 被拦截命中的聚合统计: ip -> { hits, lastLogAt }
+// 每个已封禁 IP 每分钟至多写一条聚合日志，避免机器人刷屏淹没日志
+const BLOCKED_LOG_INTERVAL = 60 * 1000
+const blockedHitStats = new Map()
+
+const logBlockedHit = (c, ip, path, result) => {
+    const now = Date.now()
+    let stats = blockedHitStats.get(ip)
+    if (!stats) {
+        stats = { hits: 0, lastLogAt: 0 }
+        blockedHitStats.set(ip, stats)
+    }
+    stats.hits++
+
+    if (now - stats.lastLogAt < BLOCKED_LOG_INTERVAL) return Promise.resolve()
+
+    const hits = stats.hits
+    stats.hits = 0
+    stats.lastLogAt = now
+
+    const persist = async () => {
+        await store.addAbuseLog({
+            ip,
+            path,
+            method: c.req.method,
+            level: 'ban',
+            reason: result.reason,
+            violations: [],
+            userAgent: c.req.header('User-Agent') || '',
+            blocked: true,
+            hitCount: hits,
+        })
+        // 顺带持久化滑动续期后的封禁到期时间，频率与日志节流一致
+        const banInfo = bannedIPs.get(ip)
+        if (banInfo && banInfo.expiresAt > 0) {
+            await store.extendIpBan(ip, banInfo.expiresAt)
+        }
+    }
+    return persist().catch(() => {})
+}
+
 const cleanupExpired = (config) => {
     const now = Date.now()
     if (now - lastCleanup < CLEANUP_INTERVAL) return
@@ -98,6 +176,11 @@ const cleanupExpired = (config) => {
     for (const [ip, ban] of bannedIPs) {
         if (ban.expiresAt && now > ban.expiresAt) {
             bannedIPs.delete(ip)
+        }
+    }
+    for (const [ip, stats] of blockedHitStats) {
+        if (now - stats.lastLogAt > CLEANUP_INTERVAL) {
+            blockedHitStats.delete(ip)
         }
     }
 }
@@ -129,11 +212,17 @@ const detectAbuse = (c, ip, path, config) => {
     // 检查封禁
     const banInfo = bannedIPs.get(ip)
     if (banInfo) {
+        let expiresAt = banInfo.expiresAt
+        // 滑动续期：封禁期内再次命中则刷新剩余时间，攻击不停就一直拦截
+        if (expiresAt > 0 && config.ban?.extendOnHit !== false) {
+            expiresAt = now + (config.ban?.extendMs || DEFAULT_CONFIG.ban.extendMs)
+            banInfo.expiresAt = expiresAt
+        }
         return {
             blocked: true,
             level: 'ban',
             reason: banInfo.reason,
-            retryAfter: Math.ceil((banInfo.expiresAt - now) / 1000),
+            retryAfter: expiresAt > 0 ? Math.ceil((expiresAt - now) / 1000) : 86400,
         }
     }
 
@@ -141,11 +230,12 @@ const detectAbuse = (c, ip, path, config) => {
     const maxRequests = config.rateLimit?.maxRequests || DEFAULT_CONFIG.rateLimit.maxRequests
     const maxApiRequests = config.rateLimit?.maxApiRequests || DEFAULT_CONFIG.rateLimit.maxApiRequests
 
-    // 重置时间窗口
+    // 重置时间窗口（违规计数一并清零，避免跨窗口累积导致意外封禁）
     if (now - record.firstTime > windowMs) {
         record.count = 1
         record.apiCount = path.startsWith('/api') ? 1 : 0
         record.firstTime = now
+        record.violations = 0
         record.paths.clear()
         record.paths.add(path)
     }
@@ -229,7 +319,7 @@ const detectAbuse = (c, ip, path, config) => {
 }
 
 export const abuseDetectorMiddleware = async (c, next) => {
-    const config = store.getAbuseConfig() || DEFAULT_CONFIG
+    const config = getEffectiveAbuseConfig()
 
     if (!config.enabled) {
         return await next()
@@ -241,23 +331,22 @@ export const abuseDetectorMiddleware = async (c, next) => {
     const ip = getClientIP(c)
     const path = c.req.path
 
-    if (isWhitelisted(path, ip, config)) {
+    // 白名单路径/IP 与携带有效凭据的请求（管理后台会话等）完全跳过频控与封禁
+    if (isWhitelisted(path, ip, config) || isValidAuth(c)) {
+        c.set('clientIP', ip)
         return await next()
     }
 
     const result = detectAbuse(c, ip, path, config)
 
     if (result.blocked) {
-        await store.addAbuseLog({
-            ip,
-            path,
-            method: c.req.method,
-            level: 'ban',
-            reason: result.reason,
-            violations: result.violations || [],
-            userAgent: c.req.header('User-Agent') || '',
-            blocked: true,
-        }).catch(() => {})
+        // 管理后台路径不做封禁拦截，保证被封禁的管理员仍可打开登录页自救
+        if (isAdminPath(path)) {
+            c.set('clientIP', ip)
+            return await next()
+        }
+
+        await logBlockedHit(c, ip, path, result)
 
         c.status(429)
         return c.json({
@@ -265,7 +354,7 @@ export const abuseDetectorMiddleware = async (c, next) => {
             message: '请求过于频繁，请稍后再试',
             retryAfter: result.retryAfter,
         }, 429, {
-            'Retry-After': String(result.retryAfter || 3600),
+            'Retry-After': String(Math.max(result.retryAfter || 0, 0)),
         })
     }
 

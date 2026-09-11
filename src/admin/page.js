@@ -573,6 +573,24 @@ const getAdminHtml = () => `<!DOCTYPE html>
 
         .form-row { display: flex; gap: 12px; }
 
+        .form-section-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            letter-spacing: 0.5px;
+            margin: 26px 0 14px;
+            padding-top: 18px;
+            border-top: 1px solid var(--border-light);
+        }
+        .form-section-title .icon { color: var(--primary); width: 14px; height: 14px; }
+
+        .form-inline-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; transition: opacity var(--transition); }
+        .form-inline-row input[type="number"] { width: 90px; }
+        .form-inline-text { font-size: 13px; color: var(--text-secondary); }
+
         .checkbox-label {
             display: flex;
             align-items: center;
@@ -589,7 +607,12 @@ const getAdminHtml = () => `<!DOCTYPE html>
             cursor: pointer;
         }
 
-        .settings-grid { display: grid; grid-template-columns: 1fr; gap: 24px; max-width: 520px; }
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+            gap: 24px;
+        }
+        .settings-section { min-width: 0; }
         .settings-section h4 {
             font-size: 15px;
             font-weight: 700;
@@ -705,11 +728,40 @@ const getAdminHtml = () => `<!DOCTYPE html>
             .ban-form-row { flex-wrap: wrap; }
             .ban-input-reason { flex: 1; min-width: 120px; }
             .ban-btn { width: 100%; }
+            .abuse-detail-grid { grid-template-columns: 1fr; }
+            .abuse-filters-row > * { flex: 1 1 100%; }
             .logs-toolbar { flex-direction: column; align-items: flex-start; }
             .logs-filters { width: 100%; }
             .filter-input { flex: 1; min-width: 0; }
             .master-switch { padding: 16px; }
         }
+
+        /* Abuse log detail panel */
+        .abuse-detail-row td { background: rgba(0,0,0,0.2); padding: 16px !important; }
+        .abuse-detail-panel { font-size: 13px; }
+        .abuse-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 12px; }
+        .abuse-detail-item label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-right: 8px; }
+        .abuse-detail-item span, .abuse-detail-item code { color: var(--text-primary); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; word-break: break-all; }
+        .abuse-violations-title { font-weight: 600; margin-bottom: 8px; color: var(--text-primary); font-size: 13px; }
+        .abuse-violation-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .abuse-violation-card { padding: 8px 12px; border-radius: var(--radius-sm); font-size: 12px; }
+        .abuse-vi-high { border-left: 3px solid #ef4444; background: rgba(239,68,68,0.1); }
+        .abuse-vi-medium { border-left: 3px solid #f97316; background: rgba(249,115,22,0.1); }
+        .abuse-vi-low { border-left: 3px solid #3b82f6; background: rgba(59,130,246,0.1); }
+        .abuse-vi-type { font-weight: 600; margin-right: 6px; }
+        .abuse-vi-severity { font-size: 10px; padding: 1px 6px; border-radius: 3px; margin-right: 6px; text-transform: uppercase; }
+        .sev-high { background: rgba(239,68,68,0.2); color: #ef4444; }
+        .sev-medium { background: rgba(249,115,22,0.2); color: #f97316; }
+        .sev-low { background: rgba(59,130,246,0.2); color: #3b82f6; }
+        .abuse-vi-detail { color: var(--text-secondary); }
+
+        /* Abuse filter bar */
+        .abuse-filters-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 0; }
+        .abuse-filters-row .form-group { margin-bottom: 0; }
+
+        /* Small table for Top Requesters */
+        .table-sm th, .table-sm td { padding: 6px 10px; font-size: 12px; }
+        .top-requester-ip { font-family: monospace; font-size: 12px; }
 
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr; }
@@ -1146,45 +1198,83 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         </div>
                     </div>
 
+                    <div class="card" id="topRequestersCard" style="display:none;">
+                        <div class="card-header"><span class="card-title">Top 活跃 IP（本次运行期间）</span></div>
+                        <div class="table-container">
+                            <table class="table table-sm" id="topRequestersTable">
+                                <thead><tr><th>IP</th><th>请求数</th><th>API请求</th><th>违规次数</th></tr></thead>
+                                <tbody id="topRequestersBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div class="card">
                         <div class="card-header"><span class="card-title">防护配置</span></div>
-                        <form id="abuseConfigForm" style="max-width: 600px;">
+                        <form id="abuseConfigForm" style="max-width: 640px;">
                             <div class="form-group">
                                 <label class="checkbox-label"><input type="checkbox" id="abuseEnabled"> 启用滥用防护</label>
+                                <small>关闭后不再进行频控与自动封禁，手动封禁与白名单仍然生效</small>
                             </div>
-                            <div class="form-group">
-                                <label>时间窗口（秒）</label>
-                                <input type="number" id="abuseWindowMs" min="10" max="3600" value="60">
-                                <small>检测时间范围内的请求频率</small>
-                            </div>
+
+                            <div class="form-section-title">${icon('dashboard')} 速率限制</div>
                             <div class="form-row">
+                                <div class="form-group" style="flex:1">
+                                    <label>时间窗口（秒）</label>
+                                    <input type="number" id="abuseWindowMs" min="10" max="3600" value="60">
+                                    <small>在该时间范围内统计请求频率</small>
+                                </div>
                                 <div class="form-group" style="flex:1">
                                     <label>窗口内最大请求数</label>
                                     <input type="number" id="abuseMaxRequests" min="10" max="10000" value="120">
+                                    <small>超出记为速率违规</small>
                                 </div>
+                            </div>
+                            <div class="form-row">
                                 <div class="form-group" style="flex:1">
                                     <label>API 最大请求数</label>
                                     <input type="number" id="abuseMaxApiRequests" min="5" max="5000" value="60">
+                                    <small>仅统计 /api 开头的路径</small>
                                 </div>
+                                <div class="form-group" style="flex:1"></div>
                             </div>
+
+                            <div class="form-section-title">${icon('ban')} 封禁策略</div>
                             <div class="form-row">
                                 <div class="form-group" style="flex:1">
                                     <label>封禁阈值（违规次数）</label>
                                     <input type="number" id="abuseThreshold" min="1" max="100" value="3">
+                                    <small>高危违规达到阈值即封禁</small>
                                 </div>
                                 <div class="form-group" style="flex:1">
                                     <label>封禁时长（分钟）</label>
                                     <input type="number" id="abuseDuration" min="1" max="1440" value="60">
+                                    <small>首次触发封禁的持续时间</small>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label>检测规则</label>
-                                <div style="display:flex;flex-wrap:wrap;gap:12px;">
+                                <label class="checkbox-label"><input type="checkbox" id="abuseExtendOnHit" checked onchange="syncAbuseExtendUI()"> 封禁期内命中自动续期</label>
+                                <div class="form-inline-row" id="abuseExtendRow" style="margin-top:8px;">
+                                    <span class="form-inline-text">每次命中延长</span>
+                                    <input type="number" id="abuseExtendMs" min="1" max="1440" value="10">
+                                    <span class="form-inline-text">分钟，攻击停止后到期自动解封</span>
+                                </div>
+                            </div>
+
+                            <div class="form-section-title">${icon('eye')} 检测规则</div>
+                            <div class="form-group">
+                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">
                                     <label class="checkbox-label"><input type="checkbox" id="abuseRuleRapid" checked> 速率检测</label>
                                     <label class="checkbox-label"><input type="checkbox" id="abuseRuleInvalid" checked> 可疑参数</label>
                                     <label class="checkbox-label"><input type="checkbox" id="abuseRulePath" checked> 路径枚举</label>
                                     <label class="checkbox-label"><input type="checkbox" id="abuseRulePattern" checked> 模式检测</label>
                                 </div>
+                            </div>
+
+                            <div class="form-section-title">${icon('shield')} 白名单</div>
+                            <div class="form-group">
+                                <label>白名单 IP（逗号分隔）</label>
+                                <input type="text" id="abuseWhitelistIps" placeholder="1.2.3.4, 240e:xxxx::1" style="font-family:monospace;">
+                                <small>白名单 IP 完全跳过频控与封禁，可用于固定出口 IP 的管理设备</small>
                             </div>
                             <button type="submit" class="btn btn-primary">保存配置</button>
                         </form>
@@ -1207,7 +1297,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                             </div>
                             <div class="form-group">
                                 <label class="checkbox-label" style="margin-bottom:12px;">
-                                    <input type="checkbox" id="banPermanentCheck"> 永久封禁（勾选后忽略时长，永不过期）
+                                    <input type="checkbox" id="banPermanentCheck" onchange="document.getElementById('banDurationInput').disabled=this.checked;"> 永久封禁（勾选后忽略时长，永不过期）
                                 </label>
                             </div>
                             <div class="form-group">
@@ -1225,26 +1315,69 @@ const getAdminHtml = () => `<!DOCTYPE html>
                     </div>
 
                     <div class="card">
-                        <div class="card-header">
-                            <span class="card-title">滥用日志</span>
-                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                <select id="abuseLogLevel" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:12px;">
-                                    <option value="">全部级别</option>
+                        <div class="card-header"><span class="card-title">筛选</span></div>
+                        <div class="abuse-filters-row">
+                            <div class="form-group" style="min-width:150px;">
+                                <label>开始时间</label>
+                                <input type="datetime-local" id="abuseLogStartTime">
+                            </div>
+                            <div class="form-group" style="min-width:150px;">
+                                <label>结束时间</label>
+                                <input type="datetime-local" id="abuseLogEndTime">
+                            </div>
+                            <div class="form-group" style="min-width:130px;">
+                                <label>IP 地址</label>
+                                <input type="text" id="abuseLogIP" placeholder="精确匹配">
+                            </div>
+                            <div class="form-group" style="min-width:100px;">
+                                <label>级别</label>
+                                <select id="abuseLogLevel">
+                                    <option value="">全部</option>
                                     <option value="low">低</option>
                                     <option value="medium">中</option>
                                     <option value="high">高</option>
                                     <option value="ban">封禁</option>
                                 </select>
-                                <input type="text" id="abuseLogIP" placeholder="过滤IP" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:12px;width:140px;">
-                                <button class="btn btn-default btn-sm" onclick="loadAbuseLogs()">刷新</button>
-                                <button class="btn btn-danger btn-sm" onclick="clearAbuseLogs()">清空</button>
+                            </div>
+                            <div class="form-group" style="min-width:100px;">
+                                <label>状态</label>
+                                <select id="abuseLogBlocked">
+                                    <option value="">全部</option>
+                                    <option value="true">已拦截</option>
+                                    <option value="false">已记录</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="min-width:130px;">
+                                <label>关键词</label>
+                                <input type="text" id="abuseLogKeyword" placeholder="路径/原因搜索">
+                            </div>
+                            <div class="form-group" style="display:flex;gap:6px;align-items:flex-end;">
+                                <button class="btn btn-primary" onclick="loadAbuseLogs(1)" style="margin-top:auto;">查询</button>
+                                <button class="btn btn-default" onclick="resetAbuseFilters()" style="margin-top:auto;">重置</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                            <span style="color:var(--text-secondary);font-size:13px;">共 <b id="abuseLogTotalCount">0</b> 条记录，第 <b id="abuseLogCurrentPage">1</b>/<b id="abuseLogTotalPages">1</b> 页</span>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-default" onclick="exportAbuseLogs()">${icon('download')} 导出 CSV</button>
+                                <button class="btn btn-danger" onclick="clearAbuseLogs()">${icon('trash')} 清空日志</button>
                             </div>
                         </div>
                         <div class="table-container">
                             <table class="table">
-                                <thead><tr><th>时间</th><th>IP</th><th>级别</th><th>路径</th><th>原因</th><th>状态</th></tr></thead>
+                                <thead><tr><th>时间</th><th>IP</th><th>方法</th><th>级别</th><th>路径</th><th>原因</th><th>状态</th><th>操作</th></tr></thead>
                                 <tbody id="abuseLogsBody"></tbody>
                             </table>
+                        </div>
+                        <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:12px;" id="abuseLogPagination">
+                            <button class="btn btn-default" onclick="loadAbuseLogs(1)" id="abuseLogFirstBtn" disabled>首页</button>
+                            <button class="btn btn-default" onclick="loadAbuseLogs(abuseLogCurrentPage - 1)" id="abuseLogPrevBtn" disabled>上一页</button>
+                            <span style="padding:0 12px;">第 <b id="abuseLogPageInfo">1</b> 页</span>
+                            <button class="btn btn-default" onclick="loadAbuseLogs(abuseLogCurrentPage + 1)" id="abuseLogNextBtn" disabled>下一页</button>
+                            <button class="btn btn-default" onclick="loadAbuseLogs(abuseLogTotalPages)" id="abuseLogLastBtn" disabled>末页</button>
                         </div>
                     </div>
                 </div>
@@ -1657,17 +1790,50 @@ const getAdminHtml = () => `<!DOCTYPE html>
         };
 
         const loadAbuse = async () => {
-            await Promise.all([loadAbuseStats(), loadAbuseConfig(), loadAbuseBans(), loadAbuseLogs()]);
+            await Promise.all([loadAbuseStats(), loadAbuseConfig(), loadAbuseBans(), loadAbuseLogs(1)]);
         };
+
+        let abuseLogCurrentPage = 1;
+        let abuseLogTotalPages = 1;
+
+        const getAbuseLogFilters = () => ({
+            startTime: document.getElementById('abuseLogStartTime').value,
+            endTime: document.getElementById('abuseLogEndTime').value,
+            ip: document.getElementById('abuseLogIP').value.trim(),
+            level: document.getElementById('abuseLogLevel').value,
+            blocked: document.getElementById('abuseLogBlocked').value,
+            keyword: document.getElementById('abuseLogKeyword').value.trim(),
+        });
 
         const loadAbuseStats = async () => {
             const res = await api('/admin/abuse/stats');
-            if (res?.success) {
-                document.getElementById('abuseActiveRecords').textContent = res.data.activeRecords || 0;
-                document.getElementById('abuseBannedCount').textContent = res.data.activeBans || 0;
-                document.getElementById('abuseRecentBlocked').textContent = res.data.recentBlocked || 0;
-                document.getElementById('abuseTotalLogs').textContent = res.data.totalLogs || 0;
+            if (!res?.success) return;
+            const d = res.data;
+            document.getElementById('abuseActiveRecords').textContent = d.activeRecords || 0;
+            document.getElementById('abuseBannedCount').textContent = d.activeBans || 0;
+            document.getElementById('abuseRecentBlocked').textContent = d.recentBlocked || 0;
+            document.getElementById('abuseTotalLogs').textContent = d.totalLogs || 0;
+            // Top Requesters
+            const top = d.topRequesters || [];
+            const card = document.getElementById('topRequestersCard');
+            const body = document.getElementById('topRequestersBody');
+            if (top.length > 0) {
+                card.style.display = '';
+                body.innerHTML = top.slice(0, 10).map(r => '<tr>'
+                    + '<td class="top-requester-ip">' + escapeHtml(r.ip) + '</td>'
+                    + '<td>' + r.count + '</td>'
+                    + '<td>' + (r.apiCount || 0) + '</td>'
+                    + '<td>' + (r.violations || 0) + '</td></tr>').join('');
+            } else {
+                card.style.display = 'none';
             }
+        };
+
+        // 续期开关联动：未勾选时置灰时长输入
+        window.syncAbuseExtendUI = () => {
+            const on = document.getElementById('abuseExtendOnHit').checked;
+            document.getElementById('abuseExtendMs').disabled = !on;
+            document.getElementById('abuseExtendRow').style.opacity = on ? '1' : '0.45';
         };
 
         const loadAbuseConfig = async () => {
@@ -1680,32 +1846,147 @@ const getAdminHtml = () => `<!DOCTYPE html>
                 document.getElementById('abuseMaxApiRequests').value = c.rateLimit?.maxApiRequests || 60;
                 document.getElementById('abuseThreshold').value = c.ban?.threshold || 3;
                 document.getElementById('abuseDuration').value = (c.ban?.duration || 3600000) / 60000;
+                document.getElementById('abuseExtendOnHit').checked = c.ban?.extendOnHit !== false;
+                document.getElementById('abuseExtendMs').value = (c.ban?.extendMs || 600000) / 60000;
                 document.getElementById('abuseRuleRapid').checked = c.rules?.rapidRequests !== false;
                 document.getElementById('abuseRuleInvalid').checked = c.rules?.invalidParams !== false;
                 document.getElementById('abuseRulePath').checked = c.rules?.pathEnumeration !== false;
                 document.getElementById('abuseRulePattern').checked = c.rules?.suspiciousPatterns !== false;
+                document.getElementById('abuseWhitelistIps').value = (c.whitelist?.ips || []).join(',');
+                window.syncAbuseExtendUI();
             }
         };
 
-        window.loadAbuseLogs = async () => {
-            const level = document.getElementById('abuseLogLevel').value;
-            const ip = document.getElementById('abuseLogIP').value;
-            const params = new URLSearchParams({ limit: 100 });
-            if (level) params.set('level', level);
-            if (ip) params.set('ip', ip);
+        const updateAbusePagination = () => {
+            document.getElementById('abuseLogTotalCount').textContent = '...';
+            document.getElementById('abuseLogCurrentPage').textContent = abuseLogCurrentPage;
+            document.getElementById('abuseLogTotalPages').textContent = abuseLogTotalPages;
+            document.getElementById('abuseLogPageInfo').textContent = abuseLogCurrentPage;
+            document.getElementById('abuseLogFirstBtn').disabled = abuseLogCurrentPage <= 1;
+            document.getElementById('abuseLogPrevBtn').disabled = abuseLogCurrentPage <= 1;
+            document.getElementById('abuseLogNextBtn').disabled = abuseLogCurrentPage >= abuseLogTotalPages;
+            document.getElementById('abuseLogLastBtn').disabled = abuseLogCurrentPage >= abuseLogTotalPages;
+        };
+
+        window.loadAbuseLogs = async (page = 1) => {
+            const filters = getAbuseLogFilters();
+            const params = new URLSearchParams({ page: Math.max(1, page), pageSize: 50 });
+            if (filters.ip) params.set('ip', filters.ip);
+            if (filters.level) params.set('level', filters.level);
+            if (filters.blocked) params.set('blocked', filters.blocked);
+            if (filters.keyword) params.set('keyword', filters.keyword);
             const res = await api('/admin/abuse/logs?' + params.toString());
+            if (!res?.success) return;
+            const { items, total } = res.data;
+            window._abuseLogs = items;
+            abuseLogTotalPages = res.data.totalPages || 1;
+            abuseLogCurrentPage = res.data.page || 1;
+            document.getElementById('abuseLogTotalCount').textContent = total;
             const tbody = document.getElementById('abuseLogsBody');
-            if (res?.success) {
-                tbody.innerHTML = res.data.map(log => {
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;">暂无日志</td></tr>';
+            } else {
+                tbody.innerHTML = items.map((log, idx) => {
                     const badgeClass = log.level === 'ban' ? 'badge-error' : log.level === 'high' ? 'badge-warning' : log.level === 'medium' ? 'badge-info' : 'badge-primary';
-                    const statusHtml = log.blocked ? '<span style="color:#ef4444;">已拦截</span>' : '<span style="color:#10b981;">已记录</span>';
-                    return '<tr><td>' + escapeHtml(new Date(log.timestamp).toLocaleString('zh-CN')) + '</td>'
+                    const statusHtml = log.blocked
+                        ? '<span style="color:#ef4444;font-weight:600;">已拦截</span>' + (log.hitCount > 1 ? ' <span style="color:#f59e0b;font-size:11px;font-weight:600;" title="聚合命中次数">×' + log.hitCount + '</span>' : '')
+                        : '<span style="color:#10b981;">已记录</span>';
+                    return '<tr data-log-idx="' + idx + '" onclick="toggleAbuseDetail(' + idx + ')" style="cursor:pointer;">'
+                        + '<td>' + escapeHtml(new Date(log.timestamp).toLocaleString('zh-CN')) + '</td>'
                         + '<td>' + escapeHtml(log.ip) + '</td>'
+                        + '<td><code style="font-size:11px;background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px;">' + escapeHtml(log.method) + '</code></td>'
                         + '<td><span class="badge ' + badgeClass + '">' + escapeHtml(log.level) + '</span></td>'
-                        + '<td style="max-width:200px;word-break:break-all;">' + escapeHtml(log.path) + '</td>'
-                        + '<td>' + escapeHtml(log.reason) + '</td>'
-                        + '<td>' + statusHtml + '</td></tr>';
-                }).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8;">暂无日志</td></tr>';
+                        + '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(log.path) + '">' + escapeHtml(log.path) + '</td>'
+                        + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(log.reason) + '">' + escapeHtml(log.reason) + '</td>'
+                        + '<td>' + statusHtml + '</td>'
+                        + '<td style="white-space:nowrap;"><button class="btn btn-sm btn-default" onclick="event.stopPropagation();toggleAbuseDetail(' + idx + ')">详情</button></td>'
+                        + '</tr>';
+                }).join('');
+            }
+            updateAbusePagination();
+            loadAbuseStats();
+        };
+
+        window.toggleAbuseDetail = (idx) => {
+            const logs = window._abuseLogs;
+            if (!logs || logs.length === 0) return;
+            const existing = document.querySelector('.abuse-detail-row');
+            if (existing) { existing.remove(); return; }
+            const log = logs[idx];
+            if (!log) return;
+            const violationsHtml = (log.violations || []).map(v =>
+                '<div class="abuse-violation-card abuse-vi-' + escapeHtml(v.severity || 'low') + '">'
+                + '<span class="abuse-vi-severity sev-' + escapeHtml(v.severity || 'low') + '">' + escapeHtml(v.severity || 'low') + '</span>'
+                + '<span class="abuse-vi-type">' + escapeHtml(v.type || '') + '</span>'
+                + '<span class="abuse-vi-detail">' + escapeHtml(v.detail || '') + '</span>'
+                + '</div>'
+            ).join('');
+            const detailRow = document.createElement('tr');
+            detailRow.className = 'abuse-detail-row';
+            detailRow.innerHTML = '<td colspan="8"><div class="abuse-detail-panel">'
+                + '<div class="abuse-detail-grid">'
+                + '<div class="abuse-detail-item"><label>请求路径</label><code>' + escapeHtml(log.path) + '</code></div>'
+                + '<div class="abuse-detail-item"><label>User-Agent</label><code>' + escapeHtml(log.userAgent || '(无)') + '</code></div>'
+                + (log.hitCount > 1 ? '<div class="abuse-detail-item"><label>聚合命中</label><code>' + log.hitCount + ' 次（同一 IP 每分钟聚合为一条）</code></div>' : '')
+                + '</div>'
+                + (violationsHtml ? '<div class="abuse-violations-title">违规明细 (' + (log.violations || []).length + ' 项)</div><div class="abuse-violation-list">' + violationsHtml + '</div>' : '')
+                + '</div></td>';
+            const row = document.querySelector('[data-log-idx="' + idx + '"]');
+            if (row) row.after(detailRow);
+        };
+
+        window.resetAbuseFilters = () => {
+            document.getElementById('abuseLogStartTime').value = '';
+            document.getElementById('abuseLogEndTime').value = '';
+            document.getElementById('abuseLogIP').value = '';
+            document.getElementById('abuseLogLevel').value = '';
+            document.getElementById('abuseLogBlocked').value = '';
+            document.getElementById('abuseLogKeyword').value = '';
+            loadAbuseLogs(1);
+        };
+
+        window.exportAbuseLogs = async () => {
+            showToast('正在导出所有数据...', 'success');
+            try {
+                const allItems = [];
+                let page = 1;
+                let totalPages = 1;
+                while (page <= totalPages) {
+                    const filters = getAbuseLogFilters();
+                    const params = new URLSearchParams({ page, pageSize: 500 });
+                    if (filters.ip) params.set('ip', filters.ip);
+                    if (filters.level) params.set('level', filters.level);
+                    if (filters.blocked) params.set('blocked', filters.blocked);
+                    if (filters.keyword) params.set('keyword', filters.keyword);
+                    const res = await api('/admin/abuse/logs?' + params.toString());
+                    if (!res?.success) break;
+                    allItems.push(...res.data.items);
+                    totalPages = res.data.totalPages || 1;
+                    page++;
+                }
+                const headers = ['时间', 'IP', '方法', '级别', '路径', '原因', '状态', '违规明细'];
+                const rows = allItems.map(log => [
+                    new Date(log.timestamp).toLocaleString('zh-CN'),
+                    log.ip,
+                    log.method,
+                    log.level,
+                    log.path,
+                    log.reason,
+                    log.blocked ? '已拦截' : '已记录',
+                    (log.violations || []).map(v => v.type + ': ' + v.detail).join('; '),
+                ].map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(','));
+                const bom = '\\uFEFF';
+                const csv = bom + headers.join(',') + '\\n' + rows.join('\\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'abuse_logs_' + new Date().toISOString().slice(0, 10) + '.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('导出成功，共 ' + allItems.length + ' 条记录');
+            } catch (e) {
+                showToast('导出失败: ' + e.message, 'error');
             }
         };
 
@@ -1719,8 +2000,22 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         + '<td>' + escapeHtml(ban.reason) + '</td>'
                         + '<td>' + escapeHtml(new Date(ban.bannedAt).toLocaleString('zh-CN')) + '</td>'
                         + '<td>' + escapeHtml(expired) + '</td>'
-                        + '<td><button class="btn btn-sm btn-default" onclick="unbanIP(\\'' + ban.ip + '\\')">解封</button></td></tr>';
+                        + '<td style="white-space:nowrap;">'
+                            + '<button class="btn btn-sm btn-default" onclick="resetCount(\\'' + ban.ip + '\\')" style="margin-right:4px;">重置计数</button>'
+                            + '<button class="btn btn-sm btn-danger" onclick="unbanIP(\\'' + ban.ip + '\\')">解封</button>'
+                        + '</td></tr>';
                 }).join('') || '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8;">暂无封禁</td></tr>';
+            }
+        };
+
+        window.resetCount = async (ip) => {
+            if (!confirm('确定重置 IP ' + ip + ' 的请求计数？')) return;
+            const res = await api('/admin/abuse/reset/' + encodeURIComponent(ip), { method: 'POST' });
+            if (res?.success) {
+                showToast('已重置计数');
+                loadAbuseStats();
+            } else {
+                showToast('重置失败: ' + (res?.error || '未知错误'), 'error');
             }
         };
 
@@ -1735,11 +2030,11 @@ const getAdminHtml = () => `<!DOCTYPE html>
         };
 
         window.clearAbuseLogs = async () => {
-            if (!confirm('确定清空所有滥用日志？')) return;
+            if (!confirm('确定清空所有滥用日志？此操作不可恢复。')) return;
             const res = await api('/admin/abuse/logs', { method: 'DELETE' });
             if (res?.success) {
                 showToast('已清空');
-                loadAbuseLogs();
+                loadAbuseLogs(1);
                 loadAbuseStats();
             }
         };
@@ -1757,12 +2052,18 @@ const getAdminHtml = () => `<!DOCTYPE html>
                     ban: {
                         threshold: parseInt(document.getElementById('abuseThreshold').value),
                         duration: parseInt(document.getElementById('abuseDuration').value) * 60000,
+                        extendOnHit: document.getElementById('abuseExtendOnHit').checked,
+                        extendMs: parseInt(document.getElementById('abuseExtendMs').value) * 60000,
                     },
                     rules: {
                         rapidRequests: document.getElementById('abuseRuleRapid').checked,
                         invalidParams: document.getElementById('abuseRuleInvalid').checked,
                         pathEnumeration: document.getElementById('abuseRulePath').checked,
                         suspiciousPatterns: document.getElementById('abuseRulePattern').checked,
+                    },
+                    whitelist: {
+                        ips: document.getElementById('abuseWhitelistIps').value
+                            .split(',').map(s => s.trim()).filter(Boolean),
                     },
                 };
                 const res = await api('/admin/abuse/config', {

@@ -61,6 +61,21 @@ export const adminMiddleware = async (c, next) => {
     await next()
 }
 
+// 供滥用检测等前置中间件判断请求是否携带有效凭据
+// 会话 token：任意有效登录用户即可；API token：仅 admin/* 权限可豁免
+export const isValidAuth = (c) => {
+    const username = c.req.header('X-Auth-Username')
+    const token = c.req.header('X-Auth-Token')
+    if (username && token && store.validateToken(username, token)) return true
+
+    const authHeader = c.req.header('Authorization')
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const result = store.validateApiToken(authHeader.substring(7))
+        if (result.valid && hasPermission(result.tokenData, 'admin')) return true
+    }
+    return false
+}
+
 export const optionalAuth = async (c, next) => {
     const username = c.req.header('X-Auth-Username')
     const token = c.req.header('X-Auth-Token')

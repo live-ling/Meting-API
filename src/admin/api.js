@@ -2,7 +2,7 @@ import store from '../admin/store.js'
 import { authMiddleware, adminMiddleware } from '../middleware/auth.js'
 import { validateCookie } from './cookie-validator.js'
 import cookieMonitor from './cookie-monitor.js'
-import { banIP, unbanIP, resetIPRecord, getAbuseStats } from '../middleware/abuse-detector.js'
+import { banIP, unbanIP, resetIPRecord, getAbuseStats, getEffectiveAbuseConfig } from '../middleware/abuse-detector.js'
 import apiLogger from '../service/api-logger.js'
 import fs from 'fs'
 import path from 'path'
@@ -520,19 +520,23 @@ export const adminRoutes = (app) => {
     })
 
     app.get('/admin/abuse/logs', authMiddleware, adminMiddleware, async (c) => {
-        const limit = parseInt(c.req.query('limit') || '100')
-        const offset = parseInt(c.req.query('offset') || '0')
+        const pageSize = parseInt(c.req.query('pageSize') || '50')
+        const page = Math.max(1, parseInt(c.req.query('page') || '1'))
+        const offset = (page - 1) * pageSize
         const ip = c.req.query('ip')
         const level = c.req.query('level')
         const blocked = c.req.query('blocked')
+        const keyword = c.req.query('keyword')
 
         const filters = {}
         if (ip) filters.ip = ip
         if (level) filters.level = level
         if (blocked !== undefined) filters.blocked = blocked === 'true'
+        if (keyword) filters.keyword = keyword
 
-        const logs = store.getAbuseLogs(limit, offset, filters)
-        return c.json({ success: true, data: logs })
+        const total = store.getAbuseLogTotalCount(filters)
+        const items = store.getAbuseLogs(pageSize, offset, filters)
+        return c.json({ success: true, data: { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) } })
     })
 
     app.delete('/admin/abuse/logs', authMiddleware, adminMiddleware, async (c) => {
@@ -542,7 +546,8 @@ export const adminRoutes = (app) => {
     })
 
     app.get('/admin/abuse/config', authMiddleware, adminMiddleware, async (c) => {
-        return c.json({ success: true, data: store.getAbuseConfig() })
+        // 返回与默认值深合并后的有效配置，保证 whitelist 等未持久化字段可被前端正确回填
+        return c.json({ success: true, data: getEffectiveAbuseConfig() })
     })
 
     app.put('/admin/abuse/config', authMiddleware, adminMiddleware, async (c) => {
