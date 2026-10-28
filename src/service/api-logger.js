@@ -5,6 +5,8 @@
 
 import fs from 'fs'
 import path from 'path'
+import store from '../admin/store.js'
+import { geoCountry, getCachedGeo, geoLabel, lookupGeo } from './geo.js'
 
 const DATA_DIR = globalThis?.process?.env?.DATA_DIR || './data'
 const LOGS_FILE = 'api_logs.json'
@@ -97,11 +99,26 @@ const generateId = () => `${Date.now()}_${++idCounter}_${Math.random().toString(
 
 // === 写入日志 ===
 
+/** 在线归属地返回后，回填同一 IP 的历史日志，避免新旧数据口径不一致 */
+const applyGeo = (ip, geo) => {
+    let touched = false
+    for (const log of logs) {
+        if (log.ip !== ip) continue
+        if (log.geo && log.geo.updatedAt >= geo.updatedAt) continue
+        log.geo = geo
+        log.country = geo.countryCode || log.country
+        touched = true
+    }
+    if (touched) scheduleSave()
+}
+
 const addLog = (entry) => {
+    const ip = entry.ip || 'unknown'
+    const cachedGeo = getCachedGeo(ip)
     const log = {
         id: generateId(),
         timestamp: Date.now(),
-        ip: entry.ip || 'unknown',
+        ip,
         server: entry.server || '',
         type: entry.type || '',
         requestId: entry.requestId || '',
@@ -112,12 +129,28 @@ const addLog = (entry) => {
         songArtist: entry.songArtist || '',
         error: entry.error || '',
         userAgent: (entry.userAgent || '').slice(0, 256),
+        // 来源追踪：从哪个站点跳过来、访问的是哪个域名
+        referer: (entry.referer || '').slice(0, 512),
+        host: (entry.host || '').slice(0, 128),
+        // 归属地：离线国家码先兜底；在线查询是异步的，返回后通过 applyGeo 回填
+        country: cachedGeo?.countryCode || geoCountry(ip),
+        geo: cachedGeo || null,
     }
     logs.push(log)
     if (logs.length > MAX_LOGS * 1.5) {
         logs = logs.slice(-MAX_LOGS)
     }
     scheduleSave()
+
+    // 不在 /api 响应链路里等待网络：命中缓存则上面已填好，未命中才后台查
+    if (!cachedGeo && ip !== 'unknown') {
+        try {
+            const geoConfig = store.getGeoConfig()
+            lookupGeo(ip, geoConfig)
+                .then((geo) => { if (geo) applyGeo(ip, geo) })
+                .catch(() => {})
+        } catch (_) {}
+    }
 }
 
 // === 查询 ===
@@ -195,6 +228,123 @@ const getStats = () => {
     }
 }
 
+/** 把 Referer 归一成来源站点：直接访问、无效来源、外部域名分开统计 */
+const refererHost = (referer) => {
+    if (!referer) return 'direct'
+    try {
+        const host = new URL(referer).hostname.toLowerCase().replace(/^www\./, '')
+        return host || 'direct'
+    } catch {
+        return 'invalid'
+    }
+}
+
+/**
+ * 来源统计：按 Referer 的站点聚合。
+ * @param {{ hours?: number, limit?: number, host?: string }} options
+ */
+const getRefererStats = ({ hours = 24, limit = 30, host = '' } = {}) => {
+    const since = Date.now() - Math.max(1, hours) * 60 * 60 * 1000
+    const scoped = logs.filter(l => l.timestamp >= since && (!host || l.host === host))
+
+    const map = new Map()
+    const countryCounts = {}
+    const regionCounts = {}
+    for (const log of scoped) {
+        const key = refererHost(log.referer)
+        let item = map.get(key)
+        if (!item) {
+            item = { host: key, count: 0, ips: new Set(), servers: {}, types: {}, countries: {}, regions: {}, lastSeen: 0 }
+            map.set(key, item)
+        }
+        item.count++
+        item.ips.add(log.ip)
+        item.servers[log.server] = (item.servers[log.server] || 0) + 1
+        item.types[log.type] = (item.types[log.type] || 0) + 1
+        const country = log.country || '??'
+        item.countries[country] = (item.countries[country] || 0) + 1
+        countryCounts[country] = (countryCounts[country] || 0) + 1
+        const region = geoLabel(log.geo)
+        if (region) {
+            item.regions[region] = (item.regions[region] || 0) + 1
+            regionCounts[region] = (regionCounts[region] || 0) + 1
+        }
+        if (log.timestamp > item.lastSeen) item.lastSeen = log.timestamp
+    }
+
+    const total = scoped.length
+    const items = Array.from(map.values())
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit)
+        .map(item => ({
+            host: item.host,
+            count: item.count,
+            uniqueIPs: item.ips.size,
+            share: total ? item.count / total : 0,
+            lastSeen: item.lastSeen,
+            topServer: Object.entries(item.servers).sort((a, b) => b[1] - a[1])[0]?.[0] || '',
+            topType: Object.entries(item.types).sort((a, b) => b[1] - a[1])[0]?.[0] || '',
+            topCountry: Object.entries(item.countries).sort((a, b) => b[1] - a[1])[0]?.[0] || '',
+            topRegion: Object.entries(item.regions).sort((a, b) => b[1] - a[1])[0]?.[0] || '',
+        }))
+
+    const countries = Object.entries(countryCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20)
+        .map(([code, count]) => ({ code, count, share: total ? count / total : 0 }))
+    const regions = Object.entries(regionCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20)
+        .map(([label, count]) => ({ label, count, share: total ? count / total : 0 }))
+
+    return {
+        hours,
+        total,
+        direct: items.filter(i => i.host === 'direct').reduce((sum, i) => sum + i.count, 0),
+        uniqueHosts: map.size,
+        items,
+        countries,
+        regions,
+        hosts: Array.from(map.keys()).sort(),
+    }
+}
+
+/**
+ * 按小时分桶的请求趋势，供看板画柱状图。
+ * @param {{ hours?: number }} options
+ */
+const getTimeseries = ({ hours = 24 } = {}) => {
+    const bucketMs = 60 * 60 * 1000
+    const span = Math.max(1, Math.min(72, hours))
+    const now = Date.now()
+    const start = now - span * bucketMs
+    const buckets = Array.from({ length: span }, (_, i) => ({
+        t: start + i * bucketMs,
+        total: 0,
+        success: 0,
+        error: 0,
+        ips: new Set(),
+    }))
+
+    for (const log of logs) {
+        if (log.timestamp < start) continue
+        const index = Math.min(span - 1, Math.floor((log.timestamp - start) / bucketMs))
+        const bucket = buckets[index]
+        bucket.total++
+        if (log.status === 'success') bucket.success++
+        else bucket.error++
+        bucket.ips.add(log.ip)
+    }
+
+    return buckets.map(bucket => ({
+        t: bucket.t,
+        total: bucket.total,
+        success: bucket.success,
+        error: bucket.error,
+        uniqueIPs: bucket.ips.size,
+    }))
+}
+
 // === 清理 ===
 
 const clearLogs = () => {
@@ -220,10 +370,20 @@ const escapeCSV = (val) => {
 const exportCSV = ({ startTime, endTime, ip, server, type, status, keyword } = {}) => {
     const { items } = getLogs({ startTime, endTime, ip, server, type, status, keyword, page: 1, pageSize: 10000 })
 
-    const headers = ['时间', 'IP地址', '平台', '类型', '请求ID', '状态码', '状态', '耗时(ms)', '歌曲名称', '歌手', '错误信息', 'User-Agent']
+    const headers = ['时间', 'IP地址', '来源站点', 'Referer', 'Host', '平台', '类型', '请求ID', '状态码', '状态', '耗时(ms)', '歌曲名称', '歌手', '错误信息', 'User-Agent']
     const rows = items.map(l => [
         new Date(l.timestamp).toLocaleString('zh-CN'),
         l.ip,
+        (() => {
+            if (!l.referer) return 'direct'
+            try {
+                return new URL(l.referer).hostname || 'invalid'
+            } catch {
+                return 'invalid'
+            }
+        })(),
+        l.referer || '',
+        l.host || '',
         l.server,
         l.type,
         l.requestId,
@@ -243,6 +403,8 @@ export default {
     addLog,
     getLogs,
     getStats,
+    getRefererStats,
+    getTimeseries,
     clearLogs,
     exportCSV,
     getClientIP,
