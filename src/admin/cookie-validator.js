@@ -65,6 +65,45 @@ const checkNeteaseVipAbility = async (cookieString) => {
     }
 }
 
+/**
+ * 取网易云会员明细：associator = 黑胶VIP，redplus = 黑胶SVIP，musicPackage = 音乐包。
+ * 账号接口只有 vipType 位掩码，无法直接区分 VIP / SVIP，所以单独查一次会员接口。
+ */
+const fetchNeteaseVipInfo = async (cookieString) => {
+    try {
+        const res = await request(
+            'POST',
+            'https://music.163.com/weapi/music-vip-membership/client/vip/info',
+            {},
+            { crypto: 'weapi', cookie: cookieString }
+        )
+        return res?.code === 200 ? (res.data || {}) : null
+    } catch {
+        return null
+    }
+}
+
+const resolveNeteaseMembership = (vipInfo, isVip) => {
+    const now = Date.now()
+    const active = (item) => {
+        if (!item || Number(item.vipLevel) <= 0) return false
+        const expire = Number(item.expireTime)
+        return !expire || expire > now
+    }
+    if (vipInfo && active(vipInfo.redplus)) {
+        return { role: 'svip', label: '黑胶SVIP' }
+    }
+    if (vipInfo && active(vipInfo.associator)) {
+        return { role: 'vip', label: '黑胶VIP' }
+    }
+    if (vipInfo && active(vipInfo.musicPackage)) {
+        return { role: 'music_package', label: '音乐包' }
+    }
+    return isVip
+        ? { role: 'vip', label: '黑胶VIP' }
+        : { role: 'normal', label: '普通用户' }
+}
+
 const checkTencentVipAbility = async (cookieString) => {
     try {
         const cookie = parseCookieString(cookieString)
@@ -137,11 +176,14 @@ export const validateNeteaseCookie = async (cookieString) => {
 
         if (res.code === 200 && res.account) {
             const isVip = (res.profile?.vipType || 0) > 0
+            const vipInfoPromise = fetchNeteaseVipInfo(cookieString)
             let canPlayVip = isVip
             
             if (!isVip) {
                 canPlayVip = await checkNeteaseVipAbility(cookieString)
             }
+            const vipInfo = await vipInfoPromise
+            const membership = resolveNeteaseMembership(vipInfo, isVip)
             
             return {
                 valid: true,
@@ -152,7 +194,9 @@ export const validateNeteaseCookie = async (cookieString) => {
                     avatarUrl: res.profile?.avatarUrl || '',
                     vipType: res.profile?.vipType || 0,
                     isVip: isVip,
-                    canPlayVip: canPlayVip
+                    canPlayVip: canPlayVip,
+                    vipRole: membership.role,
+                    vipRoleLabel: membership.label
                 }
             }
         } else if (res.code === 301) {
@@ -173,7 +217,9 @@ export const validateNeteaseCookie = async (cookieString) => {
                     avatarUrl: '',
                     vipType: 0,
                     isVip: false,
-                    canPlayVip: canPlayVip
+                    canPlayVip: canPlayVip,
+                    vipRole: 'normal',
+                    vipRoleLabel: '普通用户'
                 }
             }
         } else {
@@ -231,6 +277,7 @@ export const validateTencentCookie = async (cookieString) => {
         if (result.req_0 && result.req_0.code === 0) {
             const userInfo = result.req_0.data
             const isVip = (userInfo?.vip || 0) > 0
+            const isSvip = Number(userInfo?.svip || userInfo?.svipLevel || 0) > 0
             let canPlayVip = isVip
             
             if (!isVip) {
@@ -246,7 +293,9 @@ export const validateTencentCookie = async (cookieString) => {
                     avatarUrl: userInfo?.headpic || '',
                     vipType: userInfo?.vip || 0,
                     isVip: isVip,
-                    canPlayVip: canPlayVip
+                    canPlayVip: canPlayVip,
+                    vipRole: isSvip ? 'svip' : isVip ? 'vip' : 'normal',
+                    vipRoleLabel: isSvip ? 'SVIP' : isVip ? 'VIP' : '普通用户'
                 }
             }
         } else if (result.req_0 && result.req_0.code === 1000) {
@@ -267,7 +316,9 @@ export const validateTencentCookie = async (cookieString) => {
                     avatarUrl: '',
                     vipType: 0,
                     isVip: false,
-                    canPlayVip: canPlayVip
+                    canPlayVip: canPlayVip,
+                    vipRole: 'normal',
+                    vipRoleLabel: '普通用户'
                 }
             }
         }
