@@ -411,6 +411,18 @@ export const abuseDetectorMiddleware = async (c, next) => {
     const ip = getClientIP(c)
     const path = c.req.path
 
+    /*
+     * 拿不到真实 IP（本地开发、某些反代没透传 X-Forwarded-For）时，
+     * 所有访问都会记到同一个 'unknown' 桶上——本机随便点几下就能把
+     * 整个本地环境封掉，而封禁理由却记在一个无法归因的名字上。
+     * 这里对 'unknown' 只放行、不计数、不封禁：宁可漏掉一个来源不明的
+     * 攻击，也不能因为识别不出来源就误伤所有人。
+     */
+    if (!ip || ip === 'unknown') {
+        c.set('clientIP', ip || 'unknown')
+        return await next()
+    }
+
     // 高置信封禁（敏感路径探测）对所有路径生效，包括白名单里的页面：
     // 扫描器被记录后不该还能继续访问站点。
     const earlyBan = bannedIPs.get(ip)

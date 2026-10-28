@@ -1,0 +1,70 @@
+/* 设计令牌：全站（首页 / 试听 / 后台）共用，样式原型到位后在此对齐 */
+
+:root {
+  /* 颜色 */
+  --paper: #f6f2ea;
+  --paper-2: #efe9dd;
+  --surface: #fffdf9;
+  --surface-muted: #faf7f0;
+  --ink: #191713;
+  --ink-strong: #000000;
+  --muted: #6b6559;
+  --muted-soft: #928b7c;
+  --line: #e5dfd3;
+  --line-strong: #cec5b4;
+
+  --accent: #ff6900;
+  --accent-hover: #e85d00;
+  --accent-soft: #ffe9d6;
+
+  --ok: #0a8f5a;
+  --ok-soft: #e4f4ec;
+  --warn: #a8690a;
+  --warn-soft: #fbf0dc;
+  --danger: #c22f28;
+  --danger-soft: #fbe7e5;
+
+  /* 字体 */
+  --font-sans: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-display: Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", SimSun, serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+
+  /* 字号 */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-display: clamp(2rem, 1.4rem + 2.4vw, 3.25rem);
+
+  /* 间距（4 的倍数） */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* 圆角 / 阴影 */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgb(25 23 19 / 4%), 0 8px 20px -12px rgb(25 23 19 / 18%);
+  --shadow-md: 0 2px 6px rgb(25 23 19 / 5%), 0 18px 36px -22px rgb(25 23 19 / 22%);
+  --shadow-lg: 0 30px 70px -32px rgb(25 23 19 / 45%);
+
+  /* 动效 */
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --t-fast: 150ms;
+  --t-med: 220ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t-med: 0ms;
+  }
+}

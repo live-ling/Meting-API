@@ -193,18 +193,22 @@ GET /api?server=tencent&type=lrc&id=004Yi5BD3ksoAN
 
 ### 音质参数（`type=url`）
 
-`quality` 可选，默认 `standard`：
+`quality` 可选，默认 `standard`，只影响 `type=url`（列表接口返回的 `url` 字段会自动带上同一个值）：
 
-| 值 | 说明 | 常见简写 |
-|---|---|---|
-| `standard` | 128kbps | `128`, `std` |
-| `higher` | 192kbps | `192` |
-| `exhigh` | 320kbps | `320`, `hq` |
-| `lossless` | FLAC 无损 | `flac`, `sq` |
-| `hires` | Hi-Res（视曲库/会员） | `hi-res`, `hr` |
-| `jyeffect` / `sky` / `jymaster` | 网易云音效 / 沉浸声 / 母带 | `effect`, `master` |
+| 值 | 网易云音乐 | QQ 音乐 | 会员要求 | 常见简写 |
+|---|---|---|---|---|
+| `standard` | MP3 128kbps | `M500` 128kbps | 无需会员 | `128`, `128k`, `std` |
+| `higher` | MP3 192kbps | `M800` 320kbps（QQ 无 192k 档） | 无需会员 | `192`, `192k` |
+| `exhigh` | MP3 320kbps | `M800` 320kbps | 部分需会员 | `320`, `320k`, `hq` |
+| `lossless` | FLAC 无损（约 1000kbps） | `F000` FLAC | 多数需会员 | `flac`, `sq` |
+| `hires` | FLAC 24bit / 48kHz 起 | `F000` FLAC（不高于无损） | 需付费会员 | `hi-res`, `hi_res`, `hr` |
+| `jyeffect` | 高清环绕声（空间音频） | 不支持，回落 128kbps | 需付费会员 | `effect` |
+| `sky` | 沉浸环绕声（空间音频） | 不支持，回落 128kbps | 需付费会员 | — |
+| `jymaster` | 超清母带 | `F000` FLAC（不高于无损） | 需付费会员 | `master` |
 
-- `netease` 支持全部值；`tencent` 映射为 `M500`（standard）、`M800`（higher/exhigh）、`F000`（lossless/hires/jymaster）。
+- 取值表以 `src/service/quality-values.js` 为唯一事实来源：`/api` 校验、首页「音质档位」表、AI 提示词都读这一份，加一档只需改这里。
+- 传表外的值返回 **400**，响应里会列出全部可选值。
+- 酷狗 / 百度 / 酷我 目前忽略 `quality`，按平台默认规格返回。
 - 没有对应会员或曲目本身没有该音质时，上游可能回落到较低音质；完全拿不到直链时返回 **404**。
 - 响应头：`X-Audio-Quality` 回显请求值，`X-Audio-Quality-Actual` 回显上游实际命中值，`X-Audio-Bitrate` 是实际码率（netease）。
 - 缓存键已包含音质，不会把 320k 和无损串用。

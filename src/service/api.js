@@ -18,6 +18,7 @@ import store from '../admin/store.js'
 import apiLogger from './api-logger.js'
 import cache from './api-cache.js'
 import config from '../config.js'
+import { DEFAULT_QUALITY, QUALITY_ALIASES, QUALITY_VALUES } from './quality-values.js'
 
 const providers = new Providers()
 
@@ -27,20 +28,7 @@ const ID_PATTERN = /^[a-zA-Z0-9_,-]+$/
 const SEARCH_FORBIDDEN = /[\x00-\x1f\x7f<>{}\\]/
 const MAX_ID_LENGTH = 256
 
-/** 音质：netease 的 level 原值，另收常见简写；默认 standard 兼容旧行为 */
-const DEFAULT_QUALITY = 'standard'
-const QUALITY_ALIASES = {
-    standard: 'standard', std: 'standard', '128': 'standard', '128k': 'standard',
-    higher: 'higher', '192': 'higher', '192k': 'higher',
-    exhigh: 'exhigh', '320': 'exhigh', '320k': 'exhigh', hq: 'exhigh',
-    lossless: 'lossless', flac: 'lossless', sq: 'lossless',
-    hires: 'hires', 'hi-res': 'hires', hi_res: 'hires', hr: 'hires',
-    jyeffect: 'jyeffect', effect: 'jyeffect',
-    sky: 'sky',
-    jymaster: 'jymaster', master: 'jymaster',
-}
-const QUALITY_VALUES = [...new Set(Object.values(QUALITY_ALIASES))]
-
+/** 音质：取值表见 ./quality-values.js（首页与提示词共用同一份），默认 standard 兼容旧行为 */
 const normalizeQuality = (raw) => {
     if (raw === undefined || raw === null || raw === '') return DEFAULT_QUALITY
     const key = String(raw).trim().toLowerCase()

@@ -11,7 +11,7 @@ import { logoDataUri } from '../shared/logo.js'
 import styles from './styles.js'
 
 const TITLE = 'Meting API · 开放音乐数据接口'
-const DESCRIPTION = '一个 GET 请求拿到歌曲、歌单、歌词、封面与播放地址，支持 128k / 320k / 无损音质选择。五个平台、一套参数、内置缓存与限流。'
+const DESCRIPTION = '一个 GET 请求拿到歌曲、歌单、歌词、封面与播放地址，支持 128k / 320k / 无损 / Hi-Res / 母带共八档音质。五个平台、一套参数、内置缓存与限流。'
 
 const HEADER_LINKS = [
     { href: '/', label: '首页' },

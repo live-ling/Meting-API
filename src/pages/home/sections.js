@@ -1,7 +1,7 @@
 /**
  * 首页区块（小米官网式产品介绍页）
  *
- * 叙事顺序：一句话定位 → 真实接口形状 → 运行数据 → 为什么用它 → 能力参数
+ * 叙事顺序：一句话定位 → 真实接口形状 → 运行数据 → 为什么用它 → 能力参数（含音质档位）
  * → 快速上手 → 响应约定 → AI 提示词。
  *
  * 与浏览器端脚本的契约（id 不变）：
@@ -12,12 +12,13 @@
 
 import { escapeHtml } from '../shared/html.js'
 import { platformIcon, platformShortNames } from '../test/platforms.js'
+import { qualityRows, qualityCountLabel, DEFAULT_QUALITY_VALUE } from './quality.js'
 import example from '../../example.js'
 
 const QUICK_START = [
     { server: 'netease', type: 'song', fallback: '473403185', title: '单曲', result: '一首歌的全部字段' },
     { server: 'netease', type: 'playlist', fallback: '6907557348', title: '歌单', result: '一个歌单里的所有歌' },
-    { server: 'netease', type: 'url', fallback: '473403185', title: '播放地址', result: '302 跳到音频文件 · 可选音质' },
+    { server: 'netease', type: 'url', fallback: '473403185', title: '播放地址', result: '302 跳到音频文件 · 可加 quality 选音质' },
     { server: 'netease', type: 'lrc', fallback: '2015217630', title: '歌词', result: '纯文本 LRC' },
     { server: 'tencent', type: 'song', fallback: '002Rnpvi058Qdm', title: '单曲 · QQ 音乐', result: '换平台，参数不变' },
 ]
@@ -28,8 +29,8 @@ const FEATURES = [
         text: '网易云、QQ 音乐、酷狗、百度、酷我，用 server 参数切换，其余参数完全不变。',
     },
     {
-        title: '三种返回形态，音质可选',
-        text: '歌单返回 JSON 列表；url / pic 直接 302 到文件，url 还能按 128k / 320k / 无损取流；lrc 返回纯文本。',
+        title: `三种返回形态，${qualityCountLabel()}音质`,
+        text: '歌单返回 JSON 列表；url / pic 直接 302 到文件；lrc 返回纯文本。url 还能按 128k / 192k / 320k / 无损 / Hi-Res / 环绕声 / 母带取流。',
     },
     {
         title: '缓存与限流已内置',
@@ -72,14 +73,14 @@ export function heroSection({ base }) {
                 <p class="hero-eyebrow">Meting API <span class="eyebrow-dot" aria-hidden="true"></span> 开放音乐数据接口</p>
                 <h1 id="hero-title">一个请求，<br>把音乐接进你的产品。</h1>
                 <p class="hero-lede">歌曲、歌单、歌词、封面与播放地址。五个平台，一套参数；
-                    同一条链接还能按 128k / 320k / 无损选择音质，会员 Cookie 解锁更高规格。
-                    返回的数据可以直接放进播放器，也可以直接给你自己的界面用。</p>
+                    同一条链接还能按 128k / 192k / 320k / 无损 / Hi-Res / 环绕声 / 母带选音质，
+                    会员 Cookie 解锁更高规格。返回的数据可以直接放进播放器，也可以直接给你自己的界面用。</p>
                 <div class="hero-cta">
                     <a class="button button-primary" href="#quickstart">开始接入</a>
                     <a class="button button-ghost" href="/test">试听</a>
                 </div>
                 <div class="hero-endpoint">
-                    <span class="endpoint-label">你的接口地址</span>
+                    <span class="endpoint-label">接口地址</span>
                     <code class="endpoint-value" id="base-url">${escapeHtml(base || '/')}</code>
                     <button class="button button-ghost button-sm" id="copy-base" type="button">复制</button>
                 </div>
@@ -95,7 +96,7 @@ export function heroSection({ base }) {
                         <div class="response-foot">
                             <span class="mini-chip">JSON 列表</span>
                             <span class="mini-chip">302 直链</span>
-                            <span class="mini-chip">无损可选</span>
+                            <span class="mini-chip">${qualityCountLabel()}音质</span>
                             <span class="mini-chip">LRC 文本</span>
                             <span class="mini-chip">X-Cache: HIT</span>
                         </div>
@@ -167,7 +168,7 @@ export function quickStartSection({ base, capabilities }) {
     return `<section class="section" id="quickstart" aria-labelledby="quickstart-title">
             ${sectionHead({
         id: 'quickstart-title', title: '快速上手',
-        note: '把 id 换成你自己的就能用。标了 302 的链接会直接跳转到音频或图片文件；音频链接可追加 quality=lossless 等参数。',
+        note: `把 id 换成你自己的就能用。标了 302 的链接会直接跳转到音频或图片文件；音频链接可追加 quality=lossless 等参数，${qualityCountLabel()}规格见「音质档位」。`,
     })}
             <ol class="quick-list">
                 ${items}
@@ -175,7 +176,56 @@ export function quickStartSection({ base, capabilities }) {
         </section>`
 }
 
-/** 能力参数：小米参数表式的 server × type 矩阵 */
+/** 音质档位：同一个 url 请求靠 quality 换规格（取值表与 /api 校验同源） */
+export function qualityBlock() {
+    const rows = qualityRows().map(level => {
+        const isDefault = level.value === DEFAULT_QUALITY_VALUE
+        const mark = isDefault ? '<span class="quality-default">默认</span>' : ''
+        return `<tr>
+                        <th scope="row">
+                            <span class="quality-name">${escapeHtml(level.label)}${mark}</span>
+                            <code class="quality-value">${escapeHtml(level.value)}</code>
+                        </th>
+                        <td>${escapeHtml(level.netease)}</td>
+                        <td>${escapeHtml(level.tencent)}</td>
+                        <td>${escapeHtml(level.access)}</td>
+                    </tr>`
+    }).join('\n                    ')
+
+    return `<div class="spec-block" id="quality">
+                <div class="spec-subhead">
+                    <h3>音质档位</h3>
+                    <p>同一个 <code>type=url</code> 请求，用 <code>quality</code> 换规格；不传就是 <code>standard</code>。</p>
+                </div>
+                <p class="scroll-hint">← 左右滑动查看完整规格 →</p>
+                <div class="table-wrap" tabindex="0" role="region" aria-label="quality 音质档位表，可横向滚动">
+                    <table class="spec-table quality-table">
+                        <caption class="visually-hidden">quality 可选值，以及它在网易云音乐、QQ 音乐的实际规格</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col" class="quality-col">档位</th>
+                                <th scope="col">网易云音乐</th>
+                                <th scope="col">QQ 音乐</th>
+                                <th scope="col">会员要求</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                    ${rows}
+                        </tbody>
+                    </table>
+                </div>
+                <ul class="spec-notes">
+                    <li>简写都认：<code>std</code> / <code>128</code> / <code>128k</code> → standard，<code>192</code> / <code>192k</code> → higher，<code>320</code> / <code>320k</code> / <code>hq</code> → exhigh，<code>flac</code> / <code>sq</code> → lossless，<code>hi-res</code> / <code>hi_res</code> / <code>hr</code> → hires，<code>effect</code> → jyeffect，<code>master</code> → jymaster。</li>
+                    <li>只对 <code>type=url</code> 生效；列表类接口（song / playlist 等）返回的 <code>url</code> 字段会自动带上同一个 quality。</li>
+                    <li>传了表外的值直接 400，响应里会列出全部可选值。</li>
+                    <li>没权限时上游静默回落到较低档，不报错；实际拿到什么看响应头 <code>X-Audio-Quality-Actual</code>（上游真实档位），码率看 <code>X-Audio-Bitrate</code>。</li>
+                    <li>无版权，或需要会员却没配 Cookie 时，<code>url</code> 返回 404 <code>{"error":"no url"}</code>。</li>
+                    <li>酷狗 / 百度 / 酷我 目前忽略 quality，按平台默认规格返回。</li>
+                </ul>
+            </div>`
+}
+
+/** 能力参数：小米参数表式的 server × type 矩阵 + 音质档位 */
 export function capabilitySection(capabilities) {
     const head = capabilities.columns.map(column => {
         const down = column.status === 'down' ? ' is-down' : ''
@@ -226,13 +276,14 @@ export function capabilitySection(capabilities) {
             </div>
             <ul class="spec-notes">
                 ${degraded}
-                <li><code>type=url</code> 302 跳到音频地址；可选 <code>quality=standard|higher|exhigh|lossless|hires|jymaster</code>，实际可用音质取决于平台、会员权限与曲库。</li>
+                <li><code>type=url</code> 302 跳到音频地址；可加 <code>quality=standard|higher|exhigh|lossless|hires|jyeffect|sky|jymaster</code>，各档规格见下方「音质档位」。</li>
                 <li>若返回以 <code>@</code> 开头的文本，那是特殊值，不能当音频用。</li>
                 <li><code>type=pic</code> 302 跳到封面图片。</li>
                 <li><code>type=lrc</code> 返回歌词原文，用 <code>response.text()</code> 读。</li>
                 <li>其余类型返回一组歌曲数据，每条都带 title / author / url / pic / lrc。</li>
                 <li>表里是「平台支持什么」，不代表「现在一定取得到」：上游异常会返回 502 和原因。</li>
             </ul>
+            ${qualityBlock()}
         </section>`
 }
 
@@ -249,7 +300,8 @@ export function contractSection() {
                         <div><dt>title</dt><dd>歌名。</dd></div>
                         <div><dt>author</dt><dd>歌手，多个歌手用 “ / ” 隔开。</dd></div>
                         <div><dt>url</dt><dd>播放地址；也可能是指向本 API 的 <code>type=url</code> 链接，
-                            可追加 <code>quality=standard|higher|exhigh|lossless|hires|jymaster</code>，
+                            可追加 <code>quality=</code>（standard / higher / exhigh / lossless / hires /
+                            jyeffect / sky / jymaster，默认 standard），
                             或以 <code>@</code> 开头的特殊值。</dd></div>
                         <div><dt>pic</dt><dd>封面地址；也可能是指向本 API 的 <code>type=pic</code> 链接。</dd></div>
                         <div><dt>lrc</dt><dd>歌词；可能是 <code>type=lrc</code> 链接，也可能是以 <code>@</code> 开头的歌词原文。</dd></div>

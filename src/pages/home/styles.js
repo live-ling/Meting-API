@@ -686,6 +686,79 @@ code {
   background: rgba(0, 0, 0, 0.04);
 }
 
+/* ========== 音质档位（能力参数里的第二张表） ========== */
+.spec-block {
+  margin-top: var(--s8);
+}
+
+.spec-subhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2) var(--s7);
+}
+
+.spec-subhead h3 {
+  font-size: var(--fs-h3);
+  font-weight: 700;
+}
+
+.spec-subhead p {
+  max-width: 34em;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1.7;
+}
+
+/* 四列比 server × type 矩阵窄，桌面端不必强撑 640px */
+.quality-table {
+  min-width: 560px;
+}
+
+.quality-table .quality-col {
+  text-align: left;
+}
+
+/* 会员要求是一句短语，居中对齐读起来断句难，靠左 */
+.quality-table thead th:last-child,
+.quality-table tbody td:last-child {
+  text-align: left;
+}
+
+.quality-table tbody td {
+  color: var(--muted);
+}
+
+.quality-name {
+  display: block;
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.quality-default {
+  display: inline-block;
+  margin-left: var(--s2);
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+.quality-value {
+  display: block;
+  margin-top: 2px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted-soft);
+  font-size: 0.75rem;
+}
+
 .tag {
   display: inline-block;
   margin-right: var(--s2);
@@ -1118,6 +1191,28 @@ code {
 
   .platform-id {
     display: none;
+  }
+
+  /* 音质表：档位名回到表格字号，允许折行，窄屏不硬撑 */
+  .quality-table {
+    min-width: 0;
+  }
+
+  .quality-name {
+    font-size: 0.6875rem;
+    white-space: normal;
+  }
+
+  .quality-default {
+    display: block;
+    width: fit-content;
+    margin: var(--s1) 0 0;
+    padding: 0 5px;
+    font-size: 0.625rem;
+  }
+
+  .quality-value {
+    font-size: 0.625rem;
   }
 
   .prompt-banner {

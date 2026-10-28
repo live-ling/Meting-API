@@ -82,7 +82,7 @@ ${matrixTable({ columns, rows })}
 - type 语义：
   · song / playlist / album / artist / search → JSON 数组，顺序与请求的 id 顺序一致
   · lrc → text/plain 歌词
-  · url → 302 跳转到音频文件
+  · url → 302 跳转到音频文件（可加 quality 选音质，见下文「3) 音频」）
   · pic → 302 跳转到封面图片
 - id 规则：type=search 时 id 是关键词（中文可以，长度 ≤256）；
   其他类型只允许字母、数字、下划线、逗号、连字符（长度 ≤256）。
@@ -109,8 +109,19 @@ ${matrixTable({ columns, rows })}
    GET ${base}/api?server=netease&type=url&id=347230
    GET ${base}/api?server=netease&type=url&id=347230&quality=lossless
    302，Location: https://…mp3 或 .flac
-   可选 quality：standard(128) / higher(192) / exhigh(320) / lossless / hires / jymaster，默认 standard。
-   实际音质受平台、会员权限和曲库限制，请求高音质也可能回落到较低音质；完全无直链时 404。
+   可选 quality（默认 standard，只对 type=url 生效）：
+     standard  128 kbps MP3            · QQ 音乐 M500
+     higher    192 kbps MP3            · QQ 音乐 M800（QQ 无 192k 档，直接给 320k）
+     exhigh    320 kbps MP3            · QQ 音乐 M800
+     lossless  FLAC 无损               · QQ 音乐 F000
+     hires     FLAC 24 bit / 48 kHz 起 · QQ 音乐 F000（不高于无损）
+     jyeffect  高清环绕声（空间音频）   · QQ 音乐不支持，回落 128 kbps
+     sky       沉浸环绕声（空间音频）   · QQ 音乐不支持，回落 128 kbps
+     jymaster  超清母带                · QQ 音乐 F000（不高于无损）
+   简写也认：128 / 128k / std、192 / 192k、320 / 320k / hq、flac / sq、
+   hi-res / hi_res / hr、effect、master。
+   传表外的值返回 400（响应里会列出可选值）；没权限时上游静默回落到较低档，不报错：
+   实际档位看响应头 X-Audio-Quality-Actual，码率看 X-Audio-Bitrate；完全无直链时 404。
    直接把这条 API 链接写进 <audio src> 即可，浏览器会自动跟随跳转。
 4) 封面
    GET ${base}/api?server=netease&type=pic&id=347230
