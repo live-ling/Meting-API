@@ -1337,7 +1337,7 @@ const getAdminHtml = (options = {}) => {
             display: flex;
             align-items: flex-end;
             gap: 3px;
-            height: 150px;
+            height: 210px;
             padding: 6px 0;
             border-bottom: 1px solid var(--border-light);
         }
@@ -3626,7 +3626,7 @@ const getAdminHtml = (options = {}) => {
             const typeBox = document.getElementById('boardTypes');
             if (typeBox) {
                 typeBox.innerHTML = types.length
-                    ? types.map(entry => barRow(entry[0] === 'invalid' ? '异常/无效' : entry[0], entry[1], entry[1] / typeTotal)).join('')
+                    ? types.map(entry => barRow(entry[0] === 'invalid' ? '其他' : entry[0], entry[1], entry[1] / typeTotal)).join('')
                     : emptyRow('近 24 小时暂无调用');
             }
 
