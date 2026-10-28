@@ -90,4 +90,13 @@ describe('侧栏与 API 日志标题', () => {
         // 页面顶部标题仍然保留
         expect(html).toContain("apilogs: 'API 调用日志'")
     })
+
+    it('日志分页与长文本压缩结构存在', () => {
+        expect(html).toContain('id="logsPagination"')
+        expect(html).toContain('id="monitorLogPagination"')
+        expect(html).toContain('table-api-logs')
+        expect(html).toContain('table-scroll-y')
+        expect(html).toContain('cell-clip-type')
+        expect(html).toContain('cell-clip-song')
+    })
 })

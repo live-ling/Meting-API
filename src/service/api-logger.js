@@ -201,6 +201,10 @@ const getLogs = ({ startTime, endTime, ip, server, type, status, keyword, page =
 
 // === 统计 ===
 
+const VALID_TYPES = new Set(['song', 'url', 'lrc', 'pic', 'search', 'playlist', 'album', 'artist'])
+/** 扫描器会把 SQL 片段塞进 type 参数；统计时统一归到 invalid，避免污染类型分布 */
+const normalizeType = (type) => VALID_TYPES.has(type) ? type : 'invalid'
+
 const getStats = () => {
     const now = Date.now()
     const last24h = now - 24 * 60 * 60 * 1000
@@ -211,8 +215,9 @@ const getStats = () => {
     const byStatus = {}
     
     for (const l of recent) {
+        const typeKey = normalizeType(l.type)
         byServer[l.server] = (byServer[l.server] || 0) + 1
-        byType[l.type] = (byType[l.type] || 0) + 1
+        byType[typeKey] = (byType[typeKey] || 0) + 1
         byStatus[l.status] = (byStatus[l.status] || 0) + 1
     }
 
@@ -260,7 +265,8 @@ const getRefererStats = ({ hours = 24, limit = 30, host = '' } = {}) => {
         item.count++
         item.ips.add(log.ip)
         item.servers[log.server] = (item.servers[log.server] || 0) + 1
-        item.types[log.type] = (item.types[log.type] || 0) + 1
+        const typeKey = normalizeType(log.type)
+        item.types[typeKey] = (item.types[typeKey] || 0) + 1
         const country = log.country || '??'
         item.countries[country] = (item.countries[country] || 0) + 1
         countryCounts[country] = (countryCounts[country] || 0) + 1

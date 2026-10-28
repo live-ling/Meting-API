@@ -17,12 +17,13 @@ process.env.DATA_DIR = TEST_DATA_DIR
 
 let app
 let cache
+let apiLogger
 
 beforeAll(async () => {
     const { Hono } = await import('hono')
     const { default: api } = await import('../src/service/api.js')
     const { robotsHandler, sitemapHandler } = await import('../src/routes/meta.js')
-    const { default: apiLogger } = await import('../src/service/api-logger.js')
+    apiLogger = (await import('../src/service/api-logger.js')).default
     cache = (await import('../src/service/api-cache.js')).default
 
     app = new Hono()
@@ -137,5 +138,20 @@ describe('缓存模块', () => {
         expect(stats).toHaveProperty('hitRate')
         expect(stats).toHaveProperty('maxEntries')
         expect(stats.enabled).toBe(true)
+    })
+})
+
+describe('日志类型统计', () => {
+    it('扫描器塞进 type 的 SQL 片段归入 invalid，不污染类型分布', () => {
+        apiLogger.addLog({
+            server: 'netease',
+            type: "song' UNION ALL SELECT 'igebbjjsnpfymvshxsbnfsokngnzvwcr'-- aujoq6",
+            status: 'error',
+            statusCode: 400,
+            durationMs: 1,
+        })
+        const stats = apiLogger.getStats()
+        expect(stats.byType.invalid).toBeGreaterThan(0)
+        expect(Object.keys(stats.byType).some((key) => key.includes('UNION'))).toBe(false)
     })
 })

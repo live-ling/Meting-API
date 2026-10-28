@@ -294,10 +294,19 @@ export const adminRoutes = (app) => {
     })
 
     app.get('/admin/logs', authMiddleware, async (c) => {
-        const limit = parseInt(c.req.query('limit') || '100')
-        const offset = parseInt(c.req.query('offset') || '0')
-        const logs = store.getLogs(limit, offset)
-        return c.json({ success: true, data: logs })
+        const page = Math.max(1, parseInt(c.req.query('page') || '1'))
+        const pageSize = Math.min(200, Math.max(1, parseInt(c.req.query('pageSize') || c.req.query('limit') || '20')))
+        const offset = (page - 1) * pageSize
+        const logs = store.getLogs(pageSize, offset)
+        const total = store.getLogsCount()
+        return c.json({
+            success: true,
+            data: logs,
+            total,
+            page,
+            pageSize,
+            totalPages: Math.max(1, Math.ceil(total / pageSize)),
+        })
     })
 
     app.delete('/admin/logs', authMiddleware, adminMiddleware, async (c) => {
@@ -441,10 +450,19 @@ export const adminRoutes = (app) => {
     })
 
     app.get('/admin/monitor/logs', authMiddleware, adminMiddleware, async (c) => {
-        const limit = parseInt(c.req.query('limit') || '100')
-        const offset = parseInt(c.req.query('offset') || '0')
-        const logs = store.getMonitorLogs(limit, offset)
-        return c.json({ success: true, data: logs })
+        const page = Math.max(1, parseInt(c.req.query('page') || '1'))
+        const pageSize = Math.min(200, Math.max(1, parseInt(c.req.query('pageSize') || c.req.query('limit') || '20')))
+        const offset = (page - 1) * pageSize
+        const logs = store.getMonitorLogs(pageSize, offset)
+        const total = store.getMonitorLogsCount()
+        return c.json({
+            success: true,
+            data: logs,
+            total,
+            page,
+            pageSize,
+            totalPages: Math.max(1, Math.ceil(total / pageSize)),
+        })
     })
 
     // ============ IP 归属地接口（ShowAPI） ============

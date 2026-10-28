@@ -314,6 +314,10 @@ class DataStore {
             .slice(offset, offset + limit)
     }
 
+    getLogsCount() {
+        return this.logs.length
+    }
+
     async clearLogs() {
         const count = this.logs.length
         this.logs = []
@@ -1176,6 +1180,10 @@ class DataStore {
             .slice()
             .reverse()
             .slice(offset, offset + limit)
+    }
+
+    getMonitorLogsCount() {
+        return this.monitorLogs.length
     }
 
     generateApiToken() {

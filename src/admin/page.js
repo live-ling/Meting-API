@@ -406,6 +406,39 @@ const getAdminHtml = (options = {}) => {
         }
         .table tbody tr { transition: var(--transition); }
         .table tbody tr:nth-child(even) { background: #fafbfc; }
+        /* 长文本（扫描器 type/ID、歌曲名）统一省略，悬停用 title 看全文 */
+        .cell-clip {
+            display: block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .cell-clip-type { max-width: 220px; }
+        .cell-clip-id { max-width: 140px; }
+        .cell-clip-song { max-width: 240px; }
+        .table-api-logs { table-layout: fixed; min-width: 1040px; }
+        .table-api-logs td { overflow: hidden; white-space: nowrap; }
+        .table-api-logs td:first-child { white-space: nowrap; }
+        .table-scroll-y {
+            max-height: 320px;
+            overflow-y: auto;
+        }
+        .table-scroll-y thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--bg-card);
+        }
+        .pager {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .pager .page-info { padding: 0 12px; color: var(--text-secondary); font-size: 13px; }
         .table tbody tr:hover { background: var(--primary-bg); }
         .table tbody tr:last-child td { border-bottom: none; }
 
@@ -439,13 +472,15 @@ const getAdminHtml = (options = {}) => {
         }
         .modal.show { display: flex; }
         .modal-content {
+            display: flex;
+            flex-direction: column;
             background: var(--bg-card);
             padding: 0;
             border-radius: var(--radius-lg);
             width: 100%;
             max-width: 520px;
             max-height: 85vh;
-            overflow-y: auto;
+            overflow: hidden;
             box-shadow: var(--shadow-lg);
             animation: modalIn 0.3s cubic-bezier(0.16,1,0.3,1);
         }
@@ -472,7 +507,9 @@ const getAdminHtml = (options = {}) => {
             transition: var(--transition);
         }
         .modal-close:hover { background: #f1f5f9; color: var(--text); }
-        .modal-body { padding: 24px; }
+        .modal-body { padding: 24px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+        .modal-header,
+        .modal-footer { flex: 0 0 auto; }
         .modal-footer {
             display: flex;
             justify-content: flex-end;
@@ -2029,6 +2066,13 @@ const getAdminHtml = (options = {}) => {
                                 <tbody id="monitorLogsList"></tbody>
                             </table>
                         </div>
+                        <div class="pager" id="monitorLogPagination">
+                            <button class="btn btn-default btn-sm" onclick="loadMonitorLogs(1)" id="monitorLogFirstBtn" disabled>首页</button>
+                            <button class="btn btn-default btn-sm" onclick="loadMonitorLogs(monitorLogCurrentPage - 1)" id="monitorLogPrevBtn" disabled>上一页</button>
+                            <span class="page-info">第 <b id="monitorLogPageInfo">1</b>/<b id="monitorLogTotalPagesInfo">1</b> 页，共 <b id="monitorLogTotalCount">0</b> 条</span>
+                            <button class="btn btn-default btn-sm" onclick="loadMonitorLogs(monitorLogCurrentPage + 1)" id="monitorLogNextBtn" disabled>下一页</button>
+                            <button class="btn btn-default btn-sm" onclick="loadMonitorLogs(monitorLogTotalPages)" id="monitorLogLastBtn" disabled>末页</button>
+                        </div>
                     </div>
                 </div>
                 </div>
@@ -2059,6 +2103,13 @@ const getAdminHtml = (options = {}) => {
                                 <thead><tr><th>时间</th><th>操作类型</th><th>详情</th><th>操作人</th></tr></thead>
                                 <tbody id="logsList"></tbody>
                             </table>
+                        </div>
+                        <div class="pager" id="logsPagination">
+                            <button class="btn btn-default btn-sm" onclick="loadLogs(1)" id="logsFirstBtn" disabled>首页</button>
+                            <button class="btn btn-default btn-sm" onclick="loadLogs(logsCurrentPage - 1)" id="logsPrevBtn" disabled>上一页</button>
+                            <span class="page-info">第 <b id="logsPageInfo">1</b>/<b id="logsTotalPagesInfo">1</b> 页，共 <b id="logsTotalCount">0</b> 条</span>
+                            <button class="btn btn-default btn-sm" onclick="loadLogs(logsCurrentPage + 1)" id="logsNextBtn" disabled>下一页</button>
+                            <button class="btn btn-default btn-sm" onclick="loadLogs(logsTotalPages)" id="logsLastBtn" disabled>末页</button>
                         </div>
                     </div>
                 </div>
@@ -2162,7 +2213,12 @@ const getAdminHtml = (options = {}) => {
                             </div>
                         </div>
                         <div class="table-container">
-                            <table class="table">
+                            <table class="table table-api-logs">
+                                <colgroup>
+                                    <col style="width:170px;"><col style="width:120px;"><col style="width:75px;">
+                                    <col style="width:200px;"><col style="width:125px;"><col style="width:65px;">
+                                    <col style="width:65px;"><col style="width:65px;"><col style="width:220px;">
+                                </colgroup>
                                 <thead><tr><th>时间</th><th>IP</th><th>平台</th><th>类型</th><th>请求 ID</th><th>状态码</th><th>状态</th><th>耗时</th><th>歌曲信息</th></tr></thead>
                                 <tbody id="apiLogsList"></tbody>
                             </table>
@@ -2239,7 +2295,7 @@ const getAdminHtml = (options = {}) => {
 
                     <div class="card" id="topRequestersCard" style="display:none;">
                         <div class="card-header"><span class="card-title">Top 活跃 IP（本次运行期间）</span></div>
-                        <div class="table-container">
+                        <div class="table-container table-scroll-y">
                             <table class="table table-sm" id="topRequestersTable">
                                 <thead><tr><th>IP</th><th>请求数</th><th>API 请求</th><th>违规次数</th></tr></thead>
                                 <tbody id="topRequestersBody"></tbody>
@@ -3570,7 +3626,7 @@ const getAdminHtml = (options = {}) => {
             const typeBox = document.getElementById('boardTypes');
             if (typeBox) {
                 typeBox.innerHTML = types.length
-                    ? types.map(entry => barRow(entry[0], entry[1], entry[1] / typeTotal)).join('')
+                    ? types.map(entry => barRow(entry[0] === 'invalid' ? '异常/无效' : entry[0], entry[1], entry[1] / typeTotal)).join('')
                     : emptyRow('近 24 小时暂无调用');
             }
 
@@ -3705,15 +3761,37 @@ const getAdminHtml = (options = {}) => {
             tbody.innerHTML = res.data.map(user => '<tr><td>' + escapeHtml(user.username) + '</td><td><span class="badge ' + (user.role === 'admin' ? 'badge-warning' : 'badge-success') + '">' + (user.role === 'admin' ? '管理员' : '普通用户') + '</span></td><td>' + escapeHtml(formatDate(user.createdAt)) + '</td><td>' + escapeHtml(formatDate(user.lastLogin)) + '</td><td class="actions"><button class="btn btn-default btn-sm" onclick="editUser(\\'' + escapeHtml(user.username) + '\\')">编辑</button>' + (user.username !== 'admin' ? '<button class="btn btn-danger btn-sm" onclick="deleteUser(\\'' + escapeHtml(user.username) + '\\')">删除</button>' : '') + '</td></tr>').join('');
         };
 
-        const loadLogs = async () => {
-            const res = await api('/admin/logs?limit=100');
+        let logsCurrentPage = 1;
+        let logsTotalPages = 1;
+        let logsTotalCount = 0;
+        const logsPageSize = 20;
+
+        const updateLogsPagination = () => {
+            document.getElementById('logsPageInfo').textContent = logsCurrentPage;
+            document.getElementById('logsTotalPagesInfo').textContent = logsTotalPages;
+            document.getElementById('logsTotalCount').textContent = logsTotalCount;
+            document.getElementById('logsFirstBtn').disabled = logsCurrentPage <= 1;
+            document.getElementById('logsPrevBtn').disabled = logsCurrentPage <= 1;
+            document.getElementById('logsNextBtn').disabled = logsCurrentPage >= logsTotalPages;
+            document.getElementById('logsLastBtn').disabled = logsCurrentPage >= logsTotalPages;
+        };
+
+        const loadLogs = async (page = 1) => {
+            logsCurrentPage = Math.max(1, page);
+            const res = await api('/admin/logs?page=' + logsCurrentPage + '&pageSize=' + logsPageSize);
             if (!res?.success) return;
+            logsTotalPages = res.totalPages || 1;
+            logsTotalCount = res.total || 0;
+            if (logsCurrentPage > logsTotalPages) {
+                return loadLogs(logsTotalPages);
+            }
             const tbody = document.getElementById('logsList');
             if (!res.data || res.data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="empty-state-text">暂无操作日志</td></tr>';
-                return;
+            } else {
+                tbody.innerHTML = res.data.map(log => '<tr><td>' + escapeHtml(formatDate(log.timestamp)) + '</td><td>' + escapeHtml(log.action) + '</td><td>' + escapeHtml(log.details) + '</td><td>' + escapeHtml(log.username) + '</td></tr>').join('');
             }
-            tbody.innerHTML = res.data.map(log => '<tr><td>' + escapeHtml(formatDate(log.timestamp)) + '</td><td>' + escapeHtml(log.action) + '</td><td>' + escapeHtml(log.details) + '</td><td>' + escapeHtml(log.username) + '</td></tr>').join('');
+            updateLogsPagination();
         };
 
         const clearOperationLogs = async () => {
@@ -3842,17 +3920,19 @@ const getAdminHtml = (options = {}) => {
                     const statusBadge = l.status === 'success'
                         ? '<span class="badge badge-success">成功</span>'
                         : '<span class="badge badge-error">失败</span>';
-                    const songInfo = l.songName ? (escapeHtml(l.songName) + (l.songArtist ? ' - ' + escapeHtml(l.songArtist) : '')) : '-';
+                    const typeText = l.type || '-';
+                    const requestId = l.requestId || '-';
+                    const songText = l.songName ? (l.songName + (l.songArtist ? ' - ' + l.songArtist : '')) : '-';
                     return '<tr>' +
                         '<td>' + escapeHtml(formatDate(l.timestamp)) + '</td>' +
                         '<td>' + escapeHtml(l.ip) + '</td>' +
                         '<td>' + escapeHtml(l.server) + '</td>' +
-                        '<td>' + escapeHtml(l.type) + '</td>' +
-                        '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(l.requestId) + '">' + escapeHtml(l.requestId) + '</td>' +
+                        '<td><div class="cell-clip cell-clip-type" title="' + escapeHtml(typeText) + '">' + escapeHtml(typeText) + '</div></td>' +
+                        '<td><div class="cell-clip cell-clip-id" title="' + escapeHtml(requestId) + '">' + escapeHtml(requestId) + '</div></td>' +
                         '<td>' + escapeHtml(String(l.statusCode)) + '</td>' +
                         '<td>' + statusBadge + '</td>' +
                         '<td>' + escapeHtml(l.durationMs + 'ms') + '</td>' +
-                        '<td>' + songInfo + '</td>' +
+                        '<td><div class="cell-clip cell-clip-song" title="' + escapeHtml(songText) + '">' + escapeHtml(songText) + '</div></td>' +
                         '</tr>';
                 }).join('');
             }
@@ -3946,13 +4026,65 @@ const getAdminHtml = (options = {}) => {
             }
         };
 
+        let monitorLogCurrentPage = 1;
+        let monitorLogTotalPages = 1;
+        let monitorLogTotalCount = 0;
+        const monitorLogPageSize = 20;
+
+        const updateMonitorLogPagination = () => {
+            document.getElementById('monitorLogPageInfo').textContent = monitorLogCurrentPage;
+            document.getElementById('monitorLogTotalPagesInfo').textContent = monitorLogTotalPages;
+            document.getElementById('monitorLogTotalCount').textContent = monitorLogTotalCount;
+            document.getElementById('monitorLogFirstBtn').disabled = monitorLogCurrentPage <= 1;
+            document.getElementById('monitorLogPrevBtn').disabled = monitorLogCurrentPage <= 1;
+            document.getElementById('monitorLogNextBtn').disabled = monitorLogCurrentPage >= monitorLogTotalPages;
+            document.getElementById('monitorLogLastBtn').disabled = monitorLogCurrentPage >= monitorLogTotalPages;
+        };
+
+        const loadMonitorLogs = async (page = 1) => {
+            monitorLogCurrentPage = Math.max(1, page);
+            const logsRes = await api('/admin/monitor/logs?page=' + monitorLogCurrentPage + '&pageSize=' + monitorLogPageSize);
+            if (!logsRes?.success) return;
+            monitorLogTotalPages = logsRes.totalPages || 1;
+            monitorLogTotalCount = logsRes.total || 0;
+            if (monitorLogCurrentPage > monitorLogTotalPages) {
+                return loadMonitorLogs(monitorLogTotalPages);
+            }
+            const tbody = document.getElementById('monitorLogsList');
+            if (!logsRes.data || logsRes.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="empty-state"><div class="empty-state-icon">${icon('bell')}</div><div class="empty-state-text">暂无监测记录</div></td></tr>';
+            } else {
+                tbody.innerHTML = logsRes.data.map(log => {
+                    let typeText = '', typeClass = '';
+                    switch(log.type) {
+                        case 'check_complete': typeText = '检查完成'; typeClass = 'badge-success'; break;
+                        case 'check_error': typeText = '检查错误'; typeClass = 'badge-error'; break;
+                        case 'cookie_invalid': typeText = 'Cookie失效'; typeClass = 'badge-error'; break;
+                        case 'vip_lost': typeText = 'VIP丢失'; typeClass = 'badge-warning'; break;
+                        case 'vip_unavailable': typeText = '无VIP'; typeClass = 'badge-warning'; break;
+                        case 'webhook_sent': typeText = '通知发送'; typeClass = log.success ? 'badge-success' : 'badge-error'; break;
+                        case 'webhook_error': typeText = '通知失败'; typeClass = 'badge-error'; break;
+                        default: typeText = log.type; typeClass = 'badge-info';
+                    }
+                    let details = '';
+                    if (log.type === 'check_complete') details = '检查了 ' + log.totalChecked + ' 个Cookie';
+                    else if (log.type === 'cookie_invalid') details = log.platformName + ': ' + (log.note || log.cookieId) + ' - ' + log.reason;
+                    else if (log.type === 'vip_lost') details = log.platformName + ': ' + (log.note || log.cookieId) + ' - ' + log.reason;
+                    else if (log.type === 'vip_unavailable') details = log.platformName + ': ' + (log.note || log.cookieId) + ' - ' + log.reason;
+                    else if (log.type === 'webhook_sent') details = '状态码: ' + log.statusCode;
+                    else if (log.error) details = log.error;
+                    return '<tr><td>' + escapeHtml(formatDate(log.timestamp)) + '</td><td><span class="badge ' + typeClass + '">' + escapeHtml(typeText) + '</span></td><td><div class="cell-clip" title="' + escapeHtml(details) + '">' + escapeHtml(details || '-') + '</div></td></tr>';
+                }).join('');
+            }
+            updateMonitorLogPagination();
+        };
+
         const loadMonitor = async () => {
-            const [statusRes, configRes, webhookRes, smtpRes, logsRes] = await Promise.all([
+            const [statusRes, configRes, webhookRes, smtpRes] = await Promise.all([
                 api('/admin/monitor/status'),
                 api('/admin/monitor'),
                 api('/admin/webhook'),
-                api('/admin/smtp'),
-                api('/admin/monitor/logs?limit=50')
+                api('/admin/smtp')
             ]);
             if (statusRes?.success) {
                 const status = statusRes.data;
@@ -3989,34 +4121,7 @@ const getAdminHtml = (options = {}) => {
                 document.getElementById('smtpPass').value = smtpRes.data.pass || '';
                 document.getElementById('smtpTo').value = smtpRes.data.to || '';
             }
-            if (logsRes?.success) {
-                const tbody = document.getElementById('monitorLogsList');
-                if (logsRes.data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3" class="empty-state"><div class="empty-state-icon">${icon('bell')}</div><div class="empty-state-text">暂无监测记录</div></td></tr>';
-                } else {
-                    tbody.innerHTML = logsRes.data.map(log => {
-                        let typeText = '', typeClass = '';
-                        switch(log.type) {
-                            case 'check_complete': typeText = '检查完成'; typeClass = 'badge-success'; break;
-                            case 'check_error': typeText = '检查错误'; typeClass = 'badge-error'; break;
-                            case 'cookie_invalid': typeText = 'Cookie失效'; typeClass = 'badge-error'; break;
-                            case 'vip_lost': typeText = 'VIP丢失'; typeClass = 'badge-warning'; break;
-                            case 'vip_unavailable': typeText = '无VIP'; typeClass = 'badge-warning'; break;
-                            case 'webhook_sent': typeText = '通知发送'; typeClass = log.success ? 'badge-success' : 'badge-error'; break;
-                            case 'webhook_error': typeText = '通知失败'; typeClass = 'badge-error'; break;
-                            default: typeText = log.type; typeClass = 'badge-info';
-                        }
-                        let details = '';
-                        if (log.type === 'check_complete') details = '检查了 ' + log.totalChecked + ' 个Cookie';
-                        else if (log.type === 'cookie_invalid') details = log.platformName + ': ' + (log.note || log.cookieId) + ' - ' + log.reason;
-                        else if (log.type === 'vip_lost') details = log.platformName + ': ' + (log.note || log.cookieId) + ' - ' + log.reason;
-                        else if (log.type === 'vip_unavailable') details = log.platformName + ': ' + (log.note || log.cookieId) + ' - ' + log.reason;
-                        else if (log.type === 'webhook_sent') details = '状态码: ' + log.statusCode;
-                        else if (log.error) details = log.error;
-                        return '<tr><td>' + escapeHtml(formatDate(log.timestamp)) + '</td><td><span class="badge ' + typeClass + '">' + escapeHtml(typeText) + '</span></td><td>' + escapeHtml(details) + '</td></tr>';
-                    }).join('');
-                }
-            }
+            await loadMonitorLogs(1);
         };
 
         const checkNow = async () => {
