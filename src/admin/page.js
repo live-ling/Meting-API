@@ -1,11 +1,22 @@
 import { icon } from '../icons.js'
-const getAdminHtml = () => `<!DOCTYPE html>
+import { logoDataUri } from '../pages/shared/logo.js'
+import { platformIcons } from '../pages/shared/platform-icons.js'
+import { neteaseQrLoginEnabled } from './features.js'
+import store from './store.js'
+const getAdminHtml = (options = {}) => {
+    const loginBgEnabled = options.loginBg?.enabled !== false
+    const loginBgClass = loginBgEnabled ? ' has-login-bg' : ''
+    const loginBgStyle = loginBgEnabled ? ' style="background-image:url(\'/admin/login-bg\')"' : ''
+    const loginBgPreload = loginBgEnabled ? '<link rel="preload" as="image" href="/admin/login-bg">' : ''
+    const loginBgPreviewSrc = loginBgEnabled ? ' src="/admin/login-bg" loading="lazy"' : ''
+    return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meting-API 管理后台</title>
-    <link rel="icon" href="https://www.liveling.top/upload/ChatGPT%20Image%202026%E5%B9%B46%E6%9C%8823%E6%97%A5%2016_02_32.png">
+    <link rel="icon" type="image/png" href="${logoDataUri}">
+    ${loginBgPreload}
     <style>
         :root {
             --primary: #50A8D0;
@@ -69,7 +80,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background: url('https://www.liveling.top/upload/ChatGPT%20Image%202026%E5%B9%B46%E6%9C%8823%E6%97%A5%2016_10_51.png') center/cover no-repeat fixed;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
             padding: 20px;
             position: relative;
             overflow: hidden;
@@ -191,6 +202,20 @@ const getAdminHtml = () => `<!DOCTYPE html>
         .error-msg { color: var(--danger); font-size: 13px; margin-top: 12px; text-align: center; min-height: 20px; }
 
         .admin-container { display: none; }
+        /* 刷新时先隐藏登录页，等 /admin/check 返回后再决定显示登录还是后台 */
+        .auth-loading {
+            display: none;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        .auth-loading img { width: 32px; height: 32px; border-radius: 8px; }
+        body.auth-pending .auth-loading { display: flex; }
+        body.auth-pending #loginContainer,
+        body.auth-pending #adminContainer { display: none !important; }
 
         .sidebar {
             position: fixed;
@@ -503,6 +528,26 @@ const getAdminHtml = () => `<!DOCTYPE html>
             white-space: nowrap;
         }
         .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        /* 卡片头部的独立下拉框（如来源分析的时间范围），与 btn-sm 同高 */
+        .filter-input {
+            height: 30px;
+            padding: 0 30px 0 10px;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            background-color: var(--bg-card);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23928b7c' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 9px center;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 12px;
+            line-height: 1.4;
+            appearance: none;
+            cursor: pointer;
+            transition: border-color var(--transition), box-shadow var(--transition), background-color var(--transition);
+        }
+        .filter-input:hover { border-color: var(--primary); }
+        .filter-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-bg); }
 
         .empty-state {
             text-align: center;
@@ -591,7 +636,9 @@ const getAdminHtml = () => `<!DOCTYPE html>
         .form-inline-row input[type="number"] { width: 90px; }
         .form-inline-text { font-size: 13px; color: var(--text-secondary); }
 
-        .checkbox-label {
+        .checkbox-label,
+        /* .form-group label 的 display:block 优先级更高，这里显式提高一级 */
+        .form-group label.checkbox-label {
             display: flex;
             align-items: center;
             gap: 8px;
@@ -600,9 +647,12 @@ const getAdminHtml = () => `<!DOCTYPE html>
             color: var(--text);
             font-weight: 500;
         }
-        .checkbox-label input[type="checkbox"] {
+        .checkbox-label input[type="checkbox"],
+        .form-group label.checkbox-label input[type="checkbox"] {
             width: 16px;
             height: 16px;
+            margin: 0;
+            flex: 0 0 auto;
             accent-color: var(--primary);
             cursor: pointer;
         }
@@ -611,6 +661,99 @@ const getAdminHtml = () => `<!DOCTYPE html>
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
             gap: 24px;
+        }
+        .settings-tabs {
+            display: flex;
+            gap: 4px;
+            width: fit-content;
+            max-width: 100%;
+            margin-bottom: 20px;
+            padding: 4px;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--panel);
+        }
+        .settings-tab {
+            appearance: none;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            padding: 8px 16px;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: background-color var(--transition), color var(--transition), box-shadow var(--transition);
+        }
+        .settings-tab:hover { color: var(--text); background: rgba(0, 0, 0, 0.035); }
+        .settings-tab.active {
+            color: var(--text);
+            background: var(--bg-card);
+            box-shadow: var(--shadow-xs);
+        }
+        .settings-tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+        .settings-panel { display: none; }
+        .settings-panel.active { display: block; animation: fadeIn 0.18s ease; }
+        .cache-ttl-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        .cache-ttl-item { display: flex; flex-direction: column; gap: 4px; }
+        .cache-ttl-item > label {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .cache-ttl-item .cache-ttl-input { display: flex; align-items: center; gap: 6px; }
+        .cache-ttl-item .cache-ttl-input input { flex: 1; min-width: 0; padding: 8px 10px; }
+        .cache-ttl-item .unit { flex: 0 0 auto; color: var(--text-muted); font-size: 11px; }
+        .cache-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .cache-stat {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--panel);
+        }
+        .cache-stat span { display: block; color: var(--text-muted); font-size: 11px; }
+        .cache-stat b { display: block; margin-top: 4px; color: var(--text); font-size: 15px; font-weight: 700; }
+        .input-with-button { display: flex; gap: 8px; align-items: center; }
+        .input-with-button input { flex: 1; min-width: 0; }
+        .input-with-button .btn { flex: 0 0 auto; }
+        .geo-result {
+            margin: 4px 0 0;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--panel);
+        }
+        .geo-result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px 14px;
+        }
+        .geo-result-item span { display: block; color: var(--text-muted); font-size: 11px; }
+        .geo-result-item b { display: block; margin-top: 2px; color: var(--text); font-size: 13px; font-weight: 600; word-break: break-all; }
+        .geo-result details { margin-top: 10px; }
+        .geo-result summary { cursor: pointer; color: var(--text-secondary); font-size: 12px; }
+        .geo-result pre {
+            max-height: 220px;
+            margin-top: 8px;
+            padding: 10px;
+            overflow: auto;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.05);
+            font-size: 11px;
+            line-height: 1.5;
         }
         .settings-section { min-width: 0; }
         .settings-section h4 {
@@ -722,6 +865,8 @@ const getAdminHtml = () => `<!DOCTYPE html>
             .toast { top: auto; bottom: 72px; right: 12px; left: 12px; max-width: none; font-size: 12px; padding: 10px 14px; }
             .monitor-status-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
             .settings-grid { max-width: none; }
+            .settings-tabs { width: 100%; }
+            .settings-tab { flex: 1; padding: 8px 10px; }
             .user-info .user-name { display: none; }
             .abuse-config-grid { grid-template-columns: 1fr; gap: 14px; }
             .rule-toggles { grid-template-columns: 1fr 1fr; }
@@ -780,11 +925,846 @@ const getAdminHtml = () => `<!DOCTYPE html>
             .page-content { padding: 12px 10px; }
         }
     </style>
+    <style id="admin-redesign">
+        /* ============================================================
+           管理后台视觉重制：纸感底 + 墨色文字 + 橙色强调
+           只覆盖外观，不改任何结构与行为
+           ============================================================ */
+        :root {
+            --bg: #f4f1ea;
+            --bg-card: #fffdf9;
+            --bg-sidebar: #fbf9f4;
+            --bg-sidebar-hover: rgba(21, 19, 14, 0.05);
+            --bg-sidebar-active: #ffffff;
+            --text: #191713;
+            --text-secondary: #5f5a50;
+            --text-muted: #928b7c;
+            --text-sidebar: #6b6457;
+            --text-sidebar-active: #191713;
+            --border: #e7e1d4;
+            --border-light: #f1ece2;
+            --primary: #ff6900;
+            --primary-light: #ffd2b0;
+            --primary-dark: #e85d00;
+            --primary-bg: rgba(255, 105, 0, 0.09);
+            --primary-border: rgba(255, 105, 0, 0.28);
+            --success: #0a8f5a;
+            --success-bg: rgba(10, 143, 90, 0.10);
+            --warning: #a8690a;
+            --warning-bg: rgba(168, 105, 10, 0.10);
+            --danger: #c22f28;
+            --danger-bg: rgba(194, 47, 40, 0.09);
+            --info: #2f6db0;
+            --info-bg: rgba(47, 109, 176, 0.09);
+            --radius: 12px;
+            --radius-sm: 8px;
+            --radius-lg: 16px;
+            --shadow-xs: 0 1px 2px rgba(25, 23, 19, 0.04);
+            --shadow-sm: 0 1px 2px rgba(25, 23, 19, 0.04), 0 8px 20px -12px rgba(25, 23, 19, 0.18);
+            --shadow: 0 2px 6px rgba(25, 23, 19, 0.05), 0 18px 36px -22px rgba(25, 23, 19, 0.22);
+            --shadow-md: 0 4px 10px rgba(25, 23, 19, 0.06), 0 24px 48px -26px rgba(25, 23, 19, 0.28);
+            --shadow-lg: 0 30px 70px -32px rgba(25, 23, 19, 0.45);
+            /* 线条语义：--border-strong = 区块边界（重），--border = 控件描边，--border-light = 区块内细分隔 */
+            --border-strong: #d9d0be;
+            --accent: var(--primary);
+            /* 工具面板（表单/筛选/帮助）底色，与纸面区分开，不再靠边框 */
+            --panel: #f7f3ea;
+            --transition: 0.18s cubic-bezier(0.2, 0.7, 0.3, 1);
+            --transition-slow: 0.28s cubic-bezier(0.2, 0.7, 0.3, 1);
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+            font-size: 13px;
+            letter-spacing: 0.01em;
+            /* 数字统一等宽，列向扫视时数字位对齐 */
+            font-variant-numeric: tabular-nums;
+        }
+
+        ::-webkit-scrollbar-thumb { background: #d8d1c2; border-radius: 999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #c2b9a6; }
+
+        /* ---------- 登录 ---------- */
+        .login-container {
+            padding: 24px;
+            background-color: #10151f;
+            background-image:
+                radial-gradient(60% 50% at 12% 0%, #ffe7d2 0%, rgba(255, 231, 210, 0) 62%),
+                radial-gradient(55% 45% at 92% 100%, #e7edf6 0%, rgba(231, 237, 246, 0) 60%),
+                linear-gradient(180deg, #faf7f0 0%, #f4f1ea 100%);
+        }
+        /* 背景图由 /admin/login-bg 提供：服务端缓存，刷新不换图 */
+        .login-container.has-login-bg {
+            background-color: #10151f;
+            background-position: center;
+            background-size: cover;
+            background-repeat: no-repeat;
+        }
+        .login-container::after { display: none; }
+        .login-container.has-login-bg::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            display: block;
+            z-index: 0;
+            pointer-events: none;
+            background: linear-gradient(180deg, rgba(10,14,22,0.58) 0%, rgba(10,14,22,0.28) 42%, rgba(10,14,22,0.62) 100%);
+        }
+        .login-container.has-login-bg .login-box {
+            background: rgba(255,253,249,0.94);
+            border-color: rgba(255,255,255,0.58);
+            box-shadow: 0 40px 90px -30px rgba(0,0,0,0.62);
+            backdrop-filter: blur(18px) saturate(1.05);
+        }
+        .login-box {
+            max-width: 400px;
+            padding: 40px 36px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: var(--bg-card);
+            box-shadow: 0 40px 80px -42px rgba(25, 23, 19, 0.42);
+            backdrop-filter: none;
+        }
+        .login-box h1 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            text-align: left;
+            font-size: 22px;
+            letter-spacing: 0.02em;
+        }
+        .login-box h1::before {
+            content: '';
+            width: 10px;
+            height: 10px;
+            background: var(--primary);
+            border: 1px solid var(--text);
+            transform: rotate(45deg);
+        }
+        .login-box .login-subtitle {
+            margin-bottom: 28px;
+            text-align: left;
+            font-size: 13px;
+            color: var(--text-muted);
+            letter-spacing: 0.02em;
+        }
+        .login-box .error-msg { margin-top: 10px; text-align: left; font-size: 12px; }
+        .login-box .help-link { text-align: left; margin-top: 14px; font-size: 12px; }
+
+        /* ---------- 侧栏 ---------- */
+        .sidebar {
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            color: var(--text-sidebar);
+        }
+        .sidebar-brand { position: relative; padding: 22px 18px 16px; border-bottom: 1px solid var(--border-light); }
+        .sidebar-close {
+            display: none;
+            position: absolute;
+            top: 14px;
+            right: 12px;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        .sidebar-close:hover { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-bg); }
+        .sidebar-close .icon { width: 16px; height: 16px; }
+        .sidebar-brand h2 { color: var(--text); font-size: 16px; font-weight: 700; letter-spacing: 0.02em; }
+        .sidebar-brand h2 .icon { color: var(--primary); }
+        .sidebar-brand .brand-sub {
+            margin-top: 6px;
+            padding-left: 0;
+            color: var(--text-muted);
+            font-size: 11px;
+            letter-spacing: 0.08em;
+        }
+        .sidebar-menu { padding: 10px 8px; }
+        .sidebar-menu li {
+            margin-bottom: 1px;
+            padding: 9px 12px;
+            border-radius: 8px;
+            color: var(--text-sidebar);
+            font-size: 13.5px;
+            transition: background-color var(--transition), color var(--transition);
+        }
+        .sidebar-menu li:hover { background: var(--bg-sidebar-hover); color: var(--text); }
+        .sidebar-menu li.active {
+            background: var(--bg-sidebar-active);
+            color: var(--text);
+            box-shadow: var(--shadow-xs);
+        }
+        .sidebar-menu li.active::before {
+            left: 0;
+            width: 3px;
+            height: 16px;
+            border-radius: 3px;
+            background: var(--primary);
+        }
+        .sidebar-menu li .menu-icon { color: var(--text-muted); }
+        .sidebar-menu li.active .menu-icon { color: var(--primary); }
+
+        /* ---------- 可折叠侧边导航 ---------- */
+        .header-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .nav-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            flex: 0 0 auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color var(--transition), border-color var(--transition), background-color var(--transition);
+        }
+        .nav-toggle:hover { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-bg); }
+        .nav-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+        .nav-toggle .nav-icon { display: none; align-items: center; justify-content: center; }
+        .nav-toggle .icon { width: 18px; height: 18px; }
+        .nav-toggle-mobile { display: none; }
+        .sidebar-foot {
+            margin-top: auto;
+            padding: 10px 12px 14px;
+            border-top: 1px solid var(--border-light);
+        }
+        .sidebar-toggle {
+            width: 100%;
+            height: 38px;
+            justify-content: flex-start;
+            gap: 10px;
+            padding: 0 10px;
+            border-radius: 8px;
+        }
+        .nav-toggle-label {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+        .nav-backdrop { display: none; }
+
+        @media (min-width: 769px) {
+            body:not(.nav-collapsed) .nav-toggle .nav-icon-collapse { display: inline-flex; }
+            body.nav-collapsed .nav-toggle .nav-icon-open { display: inline-flex; }
+
+            /* 桌面端收起为图标栏 */
+            body.nav-collapsed .sidebar { width: 72px; }
+            body.nav-collapsed .main-content { margin-left: 72px; }
+            body.nav-collapsed .sidebar-brand { padding: 22px 8px 16px; text-align: center; }
+            body.nav-collapsed .sidebar-brand h2 { justify-content: center; gap: 0; }
+            body.nav-collapsed .brand-text,
+            body.nav-collapsed .brand-sub { display: none; }
+            body.nav-collapsed .sidebar-menu { padding: 10px 8px; }
+            body.nav-collapsed .sidebar-menu li { justify-content: center; gap: 0; padding: 11px 0; }
+            body.nav-collapsed .sidebar-menu li .menu-text { display: none; }
+            body.nav-collapsed .sidebar-menu li.active::before { left: 0; }
+            body.nav-collapsed .sidebar-foot { padding: 10px 8px 14px; }
+            body.nav-collapsed .sidebar-toggle { justify-content: center; padding: 0; }
+            body.nav-collapsed .sidebar-toggle .nav-toggle-label { display: none; }
+        }
+
+        /* ---------- 顶栏 ---------- */
+        .header {
+            padding: 13px 0;
+            border-bottom: 1px solid var(--border);
+            background: rgba(251, 249, 244, 0.92);
+            backdrop-filter: blur(10px);
+        }
+        .header h3 { font-size: 17px; font-weight: 700; letter-spacing: 0.02em; }
+        .user-name {
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: var(--primary-bg);
+            color: var(--primary-dark);
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .page-content { padding: 26px 32px 40px; }
+
+        /* ---------- 卡片 ---------- */
+        .card {
+            padding: 22px;
+            margin-bottom: 18px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-card);
+            box-shadow: var(--shadow-sm);
+        }
+        .card:hover { box-shadow: var(--shadow); }
+        .card-header { margin-bottom: 16px; }
+        .card-title { font-size: 15px; font-weight: 700; letter-spacing: 0.01em; }
+
+        .stats-grid { gap: 14px; margin-bottom: 20px; }
+        .stat-card {
+            padding: 20px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-card);
+            box-shadow: var(--shadow-sm);
+        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+        .stat-card::after { display: none; }
+        .stat-icon {
+            width: 38px;
+            height: 38px;
+            margin-bottom: 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-light);
+        }
+        .stat-card.blue .stat-icon { color: var(--primary); background: var(--primary-bg); }
+        .stat-card.green .stat-icon { color: var(--success); background: var(--success-bg); }
+        .stat-card.orange .stat-icon { color: var(--warning); background: var(--warning-bg); }
+        .stat-card.red .stat-icon { color: var(--danger); background: var(--danger-bg); }
+        .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+        .stat-label {
+            margin-top: 4px;
+            color: var(--text-muted);
+            font-size: 12px;
+            letter-spacing: 0.02em;
+        }
+        /* 防护概览：图标在数据左侧，而不是压在数据上方 */
+        .abuse-stat { display: flex; align-items: center; gap: 14px; }
+        .abuse-stat .stat-icon { margin-bottom: 0; flex: 0 0 auto; }
+        .abuse-stat .stat-body { min-width: 0; }
+        .abuse-stat .stat-label { margin-top: 2px; }
+
+        /* ---------- 表格 ---------- */
+        .table th {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: none;
+        }
+        .table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 13px;
+        }
+        .table tbody tr:nth-child(even) { background: transparent; }
+        .table tbody tr:hover { background: #faf6ee; }
+        .table-sm td, .table-sm th { padding: 8px 10px; font-size: 12px; }
+
+        /* ---------- 徽标 / 状态 ---------- */
+        .badge {
+            padding: 3px 9px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .status-dot { width: 7px; height: 7px; margin-right: 7px; }
+        .status-active { box-shadow: 0 0 0 3px var(--success-bg); }
+
+        /* ---------- 仪表盘看板 ---------- */
+        .board-kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .kpi {
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-card);
+            box-shadow: var(--shadow-sm);
+        }
+        .kpi-label { color: var(--text-muted); font-size: 11px; letter-spacing: 0.06em; }
+        .kpi-value {
+            margin-top: 6px;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            font-variant-numeric: tabular-nums;
+        }
+        .kpi-sub { margin-top: 2px; color: var(--text-muted); font-size: 11px; }
+
+        .board-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .board-grid-3 { grid-template-columns: 1.2fr 1fr 1fr; }
+
+        .bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 150px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .bar {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            justify-content: flex-end;
+            height: 100%;
+            min-width: 3px;
+            overflow: hidden;
+            border-radius: 2px 2px 0 0;
+        }
+        .bar span { display: block; width: 100%; }
+        .bar .ok { background: var(--primary); }
+        .bar .err { background: var(--danger); }
+        .bar:hover .ok { background: var(--primary-dark); }
+        .bars-axis {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 6px;
+            color: var(--text-muted);
+            font-size: 10px;
+        }
+
+        .rows { display: flex; flex-direction: column; gap: 2px; }
+        .list-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .list-row:last-child { border-bottom: 0; }
+        .list-name {
+            flex: 0 0 132px;
+            overflow: hidden;
+            font-size: 13px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .share { flex: 1; min-width: 40px; height: 4px; overflow: hidden; border-radius: 99px; background: #efeadd; }
+        .share i { display: block; height: 100%; border-radius: 99px; background: var(--primary); }
+        /* 数值列统一宽度右对齐：各行的条与数字落在同一竖线上 */
+        .list-val { flex: 0 0 auto; min-width: 44px; margin-left: auto; text-align: right; color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+        /* 请求类型的字段都很短，单独收窄标签列，避免标签与条形之间出现大片空档 */
+        #boardTypes .list-name { flex-basis: 78px; }
+
+        @media (max-width: 1100px) {
+            .board-grid, .board-grid-3 { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 760px) {
+            .board-grid, .board-grid-3 { grid-template-columns: 1fr; }
+        }
+
+        /* 品牌 logo */
+        .login-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+        .login-brand img { width: 42px; height: 42px; border-radius: 10px; }
+        .login-brand h1 { margin-bottom: 0; }
+        .login-box h1::before { content: none; }
+        .sidebar-brand h2 .brand-logo {
+            width: 22px;
+            height: 22px;
+            margin-right: 2px;
+            border-radius: 5px;
+            vertical-align: -4px;
+        }
+
+        /* 合并后的区块标题 */
+        .merge-block { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border-strong); }
+        .merge-title { margin-bottom: 16px; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
+
+        /* 工具面板：表单 / 筛选 / 帮助等「可操作面」，浅底填充，不加边框 */
+        .tool-panel {
+            padding: 20px 22px;
+            border-radius: var(--radius);
+            background: var(--panel);
+        }
+        .tool-panel > *:last-child { margin-bottom: 0; }
+        /* 设置类表单统一贴左，不居中；限宽避免输入框过长 */
+        .form-narrow { max-width: 460px; margin: 0; }
+        .form-wide { max-width: 680px; margin: 0; }
+
+        /* 取消卡片外框：用分隔线组织内容 */
+        .card {
+            padding: 0;
+            margin-bottom: 24px;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        .card:hover { box-shadow: none; }
+        .card .card-header {
+            /* 固定高度：带按钮的标题栏与纯文字标题栏底线必须落在同一水平线上 */
+            min-height: 40px;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        /* 头部按钮统一高度，保证并排区块的标题底线落在同一条线上 */
+        .card-header .btn { padding: 5px 12px; font-size: 12px; line-height: 1.4; }
+        .stat-card, .kpi {
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        .stats-grid { gap: 26px; }
+        .stat-card:hover { transform: none; box-shadow: none; }
+        /* 指标块统一签名：label / value / sub 三行，靠字级与留白分层（不加装饰线） */
+        .kpi {
+            padding: 2px 0;
+        }
+        .kpi-value.value-text { font-size: 20px; letter-spacing: 0; }
+        .kpi-value.value-time { font-size: 15px; font-weight: 600; letter-spacing: 0; }
+        .monitor-status-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 0; }
+
+        /* 图表图例：色片 + 文字，替代纯文字说明 */
+        .chart-legend {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 10px;
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+        .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+        .legend-swatch { width: 8px; height: 8px; border-radius: 2px; }
+        .legend-ok { background: var(--primary); }
+        .legend-err { background: var(--danger); }
+        .legend-note { margin-left: auto; }
+
+        /* 手机端：导航收进左侧抽屉，由顶栏汉堡按钮展开 */
+        @media (max-width: 768px) {
+            .nav-backdrop {
+                display: block;
+                position: fixed;
+                inset: 0;
+                z-index: 110;
+                background: rgba(25, 23, 19, 0.38);
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity var(--transition);
+            }
+            body.nav-open .nav-backdrop { opacity: 1; pointer-events: auto; }
+            body.nav-open { overflow: hidden; }
+            .nav-toggle .nav-icon-menu { display: inline-flex; }
+            .nav-toggle-mobile { display: inline-flex; }
+            .sidebar-foot { display: none; }
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: min(78vw, 260px);
+                height: 100vh;
+                flex-direction: column;
+                transform: translateX(-100%);
+                transition: transform var(--transition-slow);
+                z-index: 120;
+                border-right: 1px solid var(--border);
+                border-bottom: 0;
+                background: var(--bg-sidebar);
+                box-shadow: var(--shadow-lg);
+            }
+            body.nav-open .sidebar { transform: translateX(0); }
+            .sidebar-brand { display: block; padding: 20px 18px 16px; text-align: left; }
+            .sidebar-brand .brand-sub { display: block; }
+            .sidebar-close { display: inline-flex; }
+            .sidebar-menu {
+                flex-direction: column;
+                gap: 2px;
+                width: auto;
+                padding: 10px 8px;
+                overflow-x: hidden;
+                overflow-y: auto;
+            }
+            .sidebar-menu li {
+                flex: 0 0 auto;
+                min-width: 0;
+                flex-direction: row;
+                justify-content: flex-start;
+                gap: 10px;
+                padding: 11px 12px;
+                border-radius: 8px;
+                font-size: 13.5px;
+                white-space: normal;
+            }
+            .sidebar-menu li .menu-icon { width: 22px; font-size: 16px; }
+            .sidebar-menu li .menu-text { display: inline; font-size: 13.5px; white-space: nowrap; }
+            .sidebar-menu li.active {
+                background: var(--bg-sidebar-active);
+                color: var(--text);
+                box-shadow: var(--shadow-xs);
+            }
+            .sidebar-menu li.active::before { display: block; left: 0; }
+            .main-content { margin-left: 0; margin-bottom: 0; min-height: 100vh; }
+            .monitor-status-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+            .kpi-value.value-time { font-size: 14px; }
+        }
+
+        /* ---------- 按钮 ---------- */
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            box-shadow: 0 6px 16px -6px rgba(255, 105, 0, 0.55);
+        }
+        .btn-danger:hover { background: #a92822; box-shadow: none; }
+        .btn-default { border: 1px solid var(--border); background: transparent; }
+        .btn-default:hover { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-bg); }
+        .btn-success:hover, .btn-warning:hover { box-shadow: none; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 7px; }
+        .btn-lg { padding: 11px 26px; font-size: 14px; border-radius: 9px; }
+
+        /* ---------- 表单 ---------- */
+        .form-group label {
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: #fff;
+            font-size: 13px;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-bg);
+        }
+        .form-group input:disabled { background: #f5f2ec; }
+        .checkbox-label input[type="checkbox"] { accent-color: var(--primary); }
+        .form-section-title {
+            margin: 24px 0 12px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-light);
+            color: var(--text-muted);
+            font-size: 11px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+        .help-content { border: 1px solid var(--border); background: #faf7f0; }
+        .help-content code { background: var(--primary-bg); color: var(--primary-dark); }
+
+        /* ---------- 弹窗 ---------- */
+        .modal { background: rgba(25, 23, 19, 0.38); backdrop-filter: blur(4px); }
+        .modal-content {
+            max-width: 540px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: var(--bg-card);
+            box-shadow: var(--shadow-lg);
+        }
+        .modal-header { padding: 18px 22px; border-bottom: 1px solid var(--border); }
+        .modal-header h3 { font-size: 15px; letter-spacing: 0.01em; }
+        .modal-body { padding: 20px 22px; }
+        .modal-footer {
+            padding: 14px 22px;
+            border-top: 1px solid var(--border);
+            border-radius: 0 0 18px 18px;
+            background: #faf7f0;
+        }
+        .modal-close { border-radius: 8px; }
+        .modal-close:hover { background: var(--bg-sidebar-hover); }
+
+        /* ---------- 提示 ---------- */
+        .toast {
+            border-radius: 10px;
+            background: var(--text);
+            color: #fdfaf4;
+            font-size: 12.5px;
+            box-shadow: var(--shadow-md);
+        }
+        .toast-success { background: #14664a; }
+        .toast-error { background: #8f2620; }
+
+        /* ---------- 其余细节 ---------- */
+        .empty-state { padding: 48px 20px; }
+        .empty-state-icon { font-size: 40px; opacity: 0.5; }
+        .cookie-preview { font-size: 11.5px; color: var(--text-muted); }
+
+        /* ---------- Cookie 卡片 ---------- */
+        .cookie-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+        }
+        .cookie-card {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            padding: 16px;
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            background: var(--bg-card);
+            transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+        }
+        .cookie-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+        .cookie-card-head { display: flex; align-items: flex-start; gap: 12px; }
+        .cookie-avatar {
+            display: grid;
+            place-items: center;
+            width: 42px;
+            height: 42px;
+            flex: 0 0 auto;
+            overflow: hidden;
+            border-radius: 50%;
+            background: var(--primary-bg);
+            color: var(--primary-dark);
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .cookie-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .cookie-avatar span { display: none; }
+        .cookie-avatar.is-fallback span { display: block; }
+        .cookie-identity { flex: 1; min-width: 0; }
+        .cookie-platform { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 11px; }
+        .cookie-platform-ico {
+            width: 14px;
+            height: 14px;
+            flex: 0 0 auto;
+            border-radius: 3px;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: contain;
+        }
+        .cookie-platform-ico[data-platform="netease"] { background-image: url("${platformIcons.netease}"); }
+        .cookie-platform-ico[data-platform="tencent"] { background-image: url("${platformIcons.tencent}"); }
+        .cookie-name {
+            margin-top: 3px;
+            overflow: hidden;
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 700;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .cookie-sub { margin-top: 2px; overflow: hidden; color: var(--text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+        .cookie-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex: 0 0 auto; }
+        .cookie-active-text { color: var(--text-muted); font-size: 10px; }
+        .ck-switch { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
+        .ck-switch input { position: absolute; width: 0; height: 0; opacity: 0; }
+        .ck-track {
+            position: relative;
+            display: block;
+            width: 34px;
+            height: 20px;
+            border-radius: 999px;
+            background: #dcd5c6;
+            transition: background-color var(--transition);
+        }
+        .ck-thumb {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(25, 23, 19, 0.18);
+            transition: transform var(--transition);
+        }
+        .ck-switch input:checked + .ck-track { background: var(--primary); }
+        .ck-switch input:checked + .ck-track .ck-thumb { transform: translateX(14px); }
+        .ck-switch input:focus-visible + .ck-track { box-shadow: 0 0 0 3px var(--primary-bg); }
+        .cookie-card-body {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            /* 统一底色：不用内部横线，也不做明暗分区，只靠间距和字级分层 */
+            margin-top: 14px;
+        }
+        .cookie-kv { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+        .cookie-kv-label { flex: 0 0 58px; color: var(--text-muted); font-size: 10px; letter-spacing: 0.04em; }
+        .cookie-kv-value { flex: 1; min-width: 0; }
+        .cookie-preview-line { display: block; overflow: hidden; color: var(--text-muted); font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+        .cookie-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+        .cookie-fact { min-width: 0; }
+        .cookie-fact-label { display: block; color: var(--text-muted); font-size: 10px; letter-spacing: 0.04em; }
+        .cookie-fact-value { display: block; margin-top: 2px; overflow: hidden; color: var(--text); font-size: 11.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+        .cookie-fact-value.ok { color: var(--success); }
+        .cookie-fact-value.svip { color: var(--primary-dark); }
+        .cookie-fact-value.bad { color: var(--danger); }
+        .cookie-fact-value.muted { color: var(--text-muted); font-weight: 500; }
+        .cookie-error { margin-top: 2px; padding: 7px 9px; border-radius: 6px; background: var(--danger-bg); color: var(--danger); font-size: 11px; line-height: 1.45; }
+        .cookie-card-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+        .cookie-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+        .cookie-actions .btn { padding: 5px 10px; font-size: 11px; }
+        .cookie-empty { grid-column: 1 / -1; padding: 44px 20px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-muted); }
+        .cookie-empty .empty-state-text { color: var(--text-secondary); }
+        .cookie-empty p { margin-top: 6px; font-size: 12px; }
+        .divider { margin: 24px 0; border-top: 1px solid var(--border-light); }
+        .settings-section h4 { font-size: 14px; letter-spacing: 0.01em; }
+        .login-bg-preview {
+            position: relative;
+            aspect-ratio: 16 / 9;
+            margin-bottom: 12px;
+            border: 1px solid var(--border-strong);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #10151f;
+        }
+        .login-bg-preview img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .login-bg-preview.is-empty::before {
+            content: '尚未缓存背景图';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255,255,255,0.55);
+            font-size: 12px;
+            letter-spacing: 0.04em;
+        }
+        .login-bg-preview.is-empty img { visibility: hidden; }
+        .abuse-violation-card,
+        .abuse-detail-panel,
+        .logs-toolbar {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-card);
+        }
+
+        @media (max-width: 760px) {
+            .login-box { padding: 30px 24px; }
+            .page-content { padding: 18px 16px 32px; }
+            .header-inner { padding: 0 16px; }
+        }
+    </style>
 </head>
 <body>
-    <div class="login-container" id="loginContainer">
+    <script>
+        // 有登录令牌时先进入“验证中”状态，避免刷新时登录页闪一下
+        try {
+            if (localStorage.getItem('authToken')) document.body.classList.add('auth-pending');
+        } catch (_) {}
+    </script>
+    <div class="auth-loading" id="authLoading" role="status" aria-live="polite">
+        <img src="${logoDataUri}" alt="" width="32" height="32">
+        <span>正在加载管理后台…</span>
+    </div>
+    <div class="login-container${loginBgClass}" id="loginContainer"${loginBgStyle}>
         <div class="login-box" id="loginBox">
-            <h1>Meting-API</h1>
+            <div class="login-brand"><img src="${logoDataUri}" alt="Meting" width="42" height="42"><h1>Meting-API</h1></div>
             <p class="login-subtitle">管理后台登录</p>
             <form id="loginForm">
                 <div class="form-group">
@@ -816,27 +1796,40 @@ const getAdminHtml = () => `<!DOCTYPE html>
     </div>
 
     <div class="admin-container" id="adminContainer">
-        <div class="sidebar">
+        <div class="sidebar" id="adminSidebar">
             <div class="sidebar-brand">
-                <h2>${icon('music')} <span class="brand-text">Meting</span></h2>
+                <button type="button" class="sidebar-close" id="navClose" aria-label="关闭导航">${icon('xmark')}</button>
+                <h2><img class="brand-logo" src="${logoDataUri}" alt="" width="22" height="22"> <span class="brand-text">Meting</span></h2>
                 <span class="brand-sub">管理后台</span>
             </div>
             <ul class="sidebar-menu">
                 <li class="active" data-section="dashboard"><span class="menu-icon">${icon('dashboard')}</span><span class="menu-text">仪表盘</span></li>
-                <li data-section="cookies"><span class="menu-icon">${icon('cookie')}</span><span class="menu-text">Cookie管理</span></li>
-                <li data-section="monitor"><span class="menu-icon">${icon('bell')}</span><span class="menu-text">Cookie监测</span></li>
+                <li data-section="cookies"><span class="menu-icon">${icon('cookie')}</span><span class="menu-text">Cookie 与监测</span></li>
                 <li data-section="tokens"><span class="menu-icon">${icon('key')}</span><span class="menu-text">API Token</span></li>
                 <li data-section="abuse"><span class="menu-icon">${icon('shield')}</span><span class="menu-text">滥用防护</span></li>
                 <li data-section="users"><span class="menu-icon">${icon('users')}</span><span class="menu-text">用户管理</span></li>
                 <li data-section="logs"><span class="menu-icon">${icon('list')}</span><span class="menu-text">操作日志</span></li>
-                <li data-section="apilogs"><span class="menu-icon">${icon('radio')}</span><span class="menu-text">API调用日志</span></li>
+                <li data-section="apilogs"><span class="menu-icon">${icon('radio')}</span><span class="menu-text">API 调用日志</span></li>
                 <li data-section="settings"><span class="menu-icon">${icon('settings')}</span><span class="menu-text">设置</span></li>
             </ul>
+            <div class="sidebar-foot">
+                <button type="button" class="nav-toggle sidebar-toggle" id="navToggle" aria-label="收起导航" aria-controls="adminSidebar" aria-expanded="true">
+                    <span class="nav-icon nav-icon-collapse">${icon('panelClose')}</span>
+                    <span class="nav-icon nav-icon-open">${icon('panelOpen')}</span>
+                    <span class="nav-toggle-label">收起侧栏</span>
+                </button>
+            </div>
         </div>
+        <div class="nav-backdrop" id="navBackdrop" aria-hidden="true"></div>
         <div class="main-content">
             <div class="header">
                 <div class="header-inner">
-                    <h3 id="pageTitle">仪表盘</h3>
+                    <div class="header-title">
+                        <button type="button" class="nav-toggle nav-toggle-mobile" id="navToggleMobile" aria-label="打开导航" aria-controls="adminSidebar" aria-expanded="false">
+                            <span class="nav-icon nav-icon-menu">${icon('menu')}</span>
+                        </button>
+                        <h3 id="pageTitle">仪表盘</h3>
+                    </div>
                     <div class="user-info">
                         <span class="user-name" id="currentUser"></span>
                         <button class="btn btn-default btn-sm" onclick="logout()">退出登录</button>
@@ -846,106 +1839,114 @@ const getAdminHtml = () => `<!DOCTYPE html>
 
             <div class="page-content">
                 <div class="content-section active" id="dashboardSection">
-                    <div class="stats-grid">
-                        <div class="stat-card blue">
-                            <div class="stat-icon blue">${icon('cookie')}</div>
-                            <div class="stat-value" id="totalCookies">0</div>
-                            <div class="stat-label">Cookie总数</div>
-                        </div>
-                        <div class="stat-card green">
-                            <div class="stat-icon green">${icon('check')}</div>
-                            <div class="stat-value" id="validCookies">0</div>
-                            <div class="stat-label">有效Cookie</div>
-                        </div>
-                        <div class="stat-card orange">
-                            <div class="stat-icon orange">${icon('users')}</div>
-                            <div class="stat-value" id="totalUsers">0</div>
-                            <div class="stat-label">用户总数</div>
-                        </div>
-                        <div class="stat-card red">
-                            <div class="stat-icon red">${icon('list')}</div>
-                            <div class="stat-value" id="totalLogs">0</div>
-                            <div class="stat-label">操作记录</div>
-                        </div>
+                    <div class="board-kpis">
+                        <div class="kpi"><div class="kpi-label">24h 请求</div><div class="kpi-value" id="kpiCalls">-</div><div class="kpi-sub" id="kpiCallsSub">累计 -</div></div>
+                        <div class="kpi"><div class="kpi-label">成功率</div><div class="kpi-value" id="kpiRate">-</div><div class="kpi-sub">近 24 小时</div></div>
+                        <div class="kpi"><div class="kpi-label">独立 IP</div><div class="kpi-value" id="kpiIPs">-</div><div class="kpi-sub">近 24 小时</div></div>
+                        <div class="kpi"><div class="kpi-label">有效 Cookie</div><div class="kpi-value" id="kpiCookies">-</div><div class="kpi-sub" id="kpiCookiesSub">有效 / 总数</div></div>
+                        <div class="kpi"><div class="kpi-label">封禁 IP</div><div class="kpi-value" id="kpiBans">-</div><div class="kpi-sub">当前生效</div></div>
+                        <div class="kpi"><div class="kpi-label">来源站点</div><div class="kpi-value" id="kpiSources">-</div><div class="kpi-sub">近 24 小时</div></div>
                     </div>
-                    <div class="card">
-                        <div class="card-header">
-                            <span class="card-title">最近操作</span>
-                        </div>
-                        <div class="table-container">
-                            <table class="table">
-                                <thead>
-                                    <tr><th>时间</th><th>操作</th><th>详情</th><th>操作人</th></tr>
-                                </thead>
-                                <tbody id="recentLogs"></tbody>
-                            </table>
-                        </div>
+
+                    <div class="board-grid">
+                        <section class="card">
+                            <div class="card-header">
+                                <span class="card-title">近 24 小时请求</span>
+                                <button class="btn btn-default btn-sm" onclick="loadDashboard()">刷新</button>
+                            </div>
+                            <div class="bars" id="boardBars"></div>
+                            <div class="bars-axis" id="boardAxis"></div>
+                            <p class="chart-legend">
+                                <span class="legend-item"><i class="legend-swatch legend-ok"></i>成功</span>
+                                <span class="legend-item"><i class="legend-swatch legend-err"></i>失败</span>
+                                <span class="legend-note">每根柱子代表一小时，悬停可见明细</span>
+                            </p>
+                        </section>
+                        <section class="card">
+                            <div class="card-header"><span class="card-title">请求类型</span></div>
+                            <div class="rows" id="boardTypes"></div>
+                        </section>
+                    </div>
+
+                    <div class="board-grid board-grid-3">
+                        <section class="card">
+                            <div class="card-header"><span class="card-title">来源站点</span></div>
+                            <div class="rows" id="boardSources"></div>
+                        </section>
+                        <section class="card">
+                            <div class="card-header"><span class="card-title">Cookie 健康度</span></div>
+                            <div class="rows" id="boardCookies"></div>
+                        </section>
+                        <section class="card">
+                            <div class="card-header"><span class="card-title">最近操作</span></div>
+                            <div class="rows" id="boardOps"></div>
+                        </section>
                     </div>
                 </div>
 
                 <div class="content-section" id="cookiesSection">
                     <div class="card">
                         <div class="card-header">
-                            <span class="card-title">Cookie列表</span>
-                            <button class="btn btn-primary btn-sm" onclick="showAddCookieModal()">+ 添加Cookie</button>
+                            <span class="card-title">Cookie 列表</span>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                ${neteaseQrLoginEnabled ? `<button class="btn btn-primary btn-sm" onclick="openQrLogin()">${icon('qr')} 网易云扫码登录</button>` : ''}
+                                <button class="btn ${neteaseQrLoginEnabled ? 'btn-default' : 'btn-primary'} btn-sm" onclick="showAddCookieModal()">添加 Cookie</button>
+                            </div>
                         </div>
-                        <div class="table-container">
-                            <table class="table">
-                                <thead>
-                                    <tr><th>平台</th><th>Cookie预览</th><th>备注</th><th>验证状态</th><th>启用</th><th>创建时间</th><th>操作</th></tr>
-                                </thead>
-                                <tbody id="cookiesList"></tbody>
-                            </table>
-                        </div>
+                        <div class="cookie-grid" id="cookiesList"></div>
                     </div>
-                </div>
 
-                <div class="content-section" id="monitorSection">
+                    <div class="merge-block" id="monitorSection">
+                        <h2 class="merge-title">自动监测与通知</h2>
                     <div class="card">
                         <div class="card-header">
                             <span class="card-title">监测状态</span>
                             <button class="btn btn-primary btn-sm" onclick="checkNow()">立即检查</button>
                         </div>
                         <div class="monitor-status-grid">
-                            <div class="monitor-status-card">
-                                <div class="stat-value" id="monitorStatus">-</div>
-                                <div class="stat-label">监测状态</div>
+                            <div class="kpi">
+                                <div class="kpi-label">监测状态</div>
+                                <div class="kpi-value value-text" id="monitorStatus">-</div>
+                                <div class="kpi-sub">定时自动检查</div>
                             </div>
-                            <div class="monitor-status-card">
-                                <div class="stat-value" id="monitorInterval">-</div>
-                                <div class="stat-label">检查间隔(分钟)</div>
+                            <div class="kpi">
+                                <div class="kpi-label">检查间隔</div>
+                                <div class="kpi-value" id="monitorInterval">-</div>
+                                <div class="kpi-sub">分钟</div>
                             </div>
-                            <div class="monitor-status-card">
-                                <div class="stat-value" id="monitorCheckCount">0</div>
-                                <div class="stat-label">检查次数</div>
+                            <div class="kpi">
+                                <div class="kpi-label">检查次数</div>
+                                <div class="kpi-value" id="monitorCheckCount">0</div>
+                                <div class="kpi-sub">自启动以来</div>
                             </div>
-                            <div class="monitor-status-card">
-                                <div class="stat-value" id="monitorLastCheck">-</div>
-                                <div class="stat-label">上次检查</div>
+                            <div class="kpi">
+                                <div class="kpi-label">上次检查</div>
+                                <div class="kpi-value value-time" id="monitorLastCheck">-</div>
+                                <div class="kpi-sub">本地时间</div>
                             </div>
                         </div>
                     </div>
 
                     <div class="card">
                         <div class="card-header"><span class="card-title">监测设置</span></div>
-                        <form id="monitorForm" style="max-width: 400px;">
+                        <form id="monitorForm" class="tool-panel form-narrow">
                             <div class="form-group">
                                 <label class="checkbox-label"><input type="checkbox" id="monitorEnabled"> 启用定时监测</label>
                             </div>
                             <div class="form-group">
                                 <label>检查间隔（分钟）</label>
                                 <input type="number" id="monitorIntervalInput" min="5" max="1440" value="60">
-                                <small>最小5分钟，最大1440分钟(24小时)</small>
+                                <small>最小 5 分钟，最大 1440 分钟（24 小时）</small>
                             </div>
                             <button type="submit" class="btn btn-primary">保存设置</button>
                         </form>
                     </div>
 
                     <div class="card">
-                        <div class="card-header"><span class="card-title">Webhook通知设置</span></div>
-                        <form id="webhookForm" style="max-width: 600px;">
+                        <div class="card-header"><span class="card-title">Webhook 通知设置</span></div>
+                        <form id="webhookForm" class="tool-panel form-wide">
                             <div class="form-group">
-                                <label class="checkbox-label"><input type="checkbox" id="webhookEnabled"> 启用Webhook通知</label>
+                                <label class="checkbox-label"><input type="checkbox" id="webhookEnabled"> 启用 Webhook 通知</label>
                             </div>
                             <div class="form-group">
                                 <label>Webhook URL</label>
@@ -960,31 +1961,31 @@ const getAdminHtml = () => `<!DOCTYPE html>
                                 <small>根据目标服务要求选择</small>
                             </div>
                             <div class="form-group">
-                                <label>自定义 Headers (JSON格式)</label>
+                                <label>自定义 Headers（JSON 格式）</label>
                                 <textarea id="webhookHeaders" rows="3" placeholder='{"Authorization": "Bearer xxx"}'></textarea>
                                 <small>可选，用于添加认证等自定义请求头</small>
                             </div>
                             <div class="form-group">
-                                <label>Body 模板 (JSON格式，可选)</label>
+                                <label>Body 模板（JSON 格式，可选）</label>
                                 <textarea id="webhookBodyTemplate" rows="5" placeholder='{"msgtype":"markdown","markdown":{"title":"{{title}}","text":"{{message}}"}}'></textarea>
-                                <small>留空使用默认格式。支持变量: {{title}}, {{message}}, {{priority}}, {{event}}, {{time}}</small>
+                                <small>留空使用默认格式。支持变量：{{title}}、{{message}}、{{priority}}、{{event}}、{{time}}</small>
                             </div>
                             <div class="form-row">
-                                <button type="submit" class="btn btn-primary">保存Webhook</button>
+                                <button type="submit" class="btn btn-primary">保存 Webhook</button>
                                 <button type="button" class="btn btn-default" onclick="testWebhook()">测试发送</button>
                             </div>
                         </form>
                     </div>
 
                     <div class="card">
-                        <div class="card-header"><span class="card-title">SMTP邮件通知</span></div>
-                        <form id="smtpForm" style="max-width: 600px;">
+                        <div class="card-header"><span class="card-title">SMTP 邮件通知</span></div>
+                        <form id="smtpForm" class="tool-panel form-wide">
                             <div class="form-group">
                                 <label class="checkbox-label"><input type="checkbox" id="smtpEnabled"> 启用邮件通知</label>
                             </div>
                             <div class="form-row">
                                 <div class="form-group" style="flex:2;">
-                                    <label>SMTP服务器</label>
+                                    <label>SMTP 服务器</label>
                                     <input type="text" id="smtpHost" placeholder="smtp.example.com">
                                 </div>
                                 <div class="form-group" style="flex:1;">
@@ -993,7 +1994,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label class="checkbox-label"><input type="checkbox" id="smtpSecure" checked> 使用SSL/TLS加密</label>
+                                <label class="checkbox-label"><input type="checkbox" id="smtpSecure" checked> 使用 SSL/TLS 加密</label>
                             </div>
                             <div class="form-row">
                                 <div class="form-group" style="flex:1;">
@@ -1006,7 +2007,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label>密码/授权码</label>
+                                <label>密码 / 授权码</label>
                                 <input type="password" id="smtpPass" placeholder="SMTP授权码（非邮箱密码）" autocomplete="new-password">
                             </div>
                             <div class="form-group">
@@ -1014,7 +2015,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                                 <input type="text" id="smtpTo" placeholder="admin@example.com（多个用逗号分隔）">
                             </div>
                             <div class="form-row">
-                                <button type="submit" class="btn btn-primary">保存SMTP</button>
+                                <button type="submit" class="btn btn-primary">保存 SMTP</button>
                                 <button type="button" class="btn btn-default" onclick="testSmtp()">发送测试邮件</button>
                             </div>
                         </form>
@@ -1029,6 +2030,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                             </table>
                         </div>
                     </div>
+                </div>
                 </div>
 
                 <div class="content-section" id="usersSection">
@@ -1048,7 +2050,10 @@ const getAdminHtml = () => `<!DOCTYPE html>
 
                 <div class="content-section" id="logsSection">
                     <div class="card">
-                        <div class="card-header"><span class="card-title">操作日志</span></div>
+                        <div class="card-header">
+                            <span class="card-title">操作日志</span>
+                            <button class="btn btn-danger btn-sm" id="clearLogsBtn" onclick="clearOperationLogs()">${icon('trash')} 清空日志</button>
+                        </div>
                         <div class="table-container">
                             <table class="table">
                                 <thead><tr><th>时间</th><th>操作类型</th><th>详情</th><th>操作人</th></tr></thead>
@@ -1058,16 +2063,42 @@ const getAdminHtml = () => `<!DOCTYPE html>
                     </div>
                 </div>
 
-                <!-- API调用日志 -->
+                <!-- API 调用日志 -->
                 <div class="content-section" id="apilogsSection">
                     <div class="card">
-                        <div class="card-header"><span class="card-title">${icon('radio')} API 调用日志</span></div>
                         <div class="stats-grid" id="apiLogStats">
                             <div class="stat-card"><div class="stat-label">总调用数</div><div class="stat-value" id="apiLogTotal">-</div></div>
                             <div class="stat-card"><div class="stat-label">24h 调用</div><div class="stat-value" id="apiLog24h">-</div></div>
                             <div class="stat-card"><div class="stat-label">独立 IP</div><div class="stat-value" id="apiLogIPs">-</div></div>
                             <div class="stat-card"><div class="stat-label">成功数</div><div class="stat-value" id="apiLogSuccess">-</div></div>
                         </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">${icon('link')} 来源分析（Referer）</span>
+                            <div class="actions">
+                                <select id="refererHours" class="filter-input" style="min-width:120px;" onchange="loadReferers()">
+                                    <option value="24">近 24 小时</option>
+                                    <option value="168">近 7 天</option>
+                                    <option value="720">近 30 天</option>
+                                </select>
+                                <button class="btn btn-default btn-sm" onclick="loadReferers()">刷新</button>
+                            </div>
+                        </div>
+                        <p class="user-info-tooltip" style="margin-bottom:12px;">
+                            按请求头 Referer 归并来源站点；「直接访问」表示没有 Referer（播放器、服务端调用或隐私模式）。
+                        </p>
+                        <div class="table-container">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr><th>来源站点</th><th>请求数</th><th>占比</th><th>独立 IP</th><th>主要平台</th><th>主要地区</th><th>最近访问</th></tr>
+                                </thead>
+                                <tbody id="refererList">
+                                    <tr><td colspan="7" class="empty-state-text">加载中…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="user-info-tooltip" id="refererCountries" style="margin-top:10px;"></p>
                     </div>
                     <div class="card">
                         <div class="card-header"><span class="card-title">筛选</span></div>
@@ -1175,25 +2206,33 @@ const getAdminHtml = () => `<!DOCTYPE html>
                     <div class="card">
                         <div class="card-header"><span class="card-title">防护概览</span></div>
                         <div class="stats-grid" id="abuseStatsGrid">
-                            <div class="stat-card blue">
+                            <div class="stat-card blue abuse-stat">
                                 <div class="stat-icon blue">${icon('eye')}</div>
-                                <div class="stat-value" id="abuseActiveRecords">0</div>
-                                <div class="stat-label">活跃监控</div>
+                                <div class="stat-body">
+                                    <div class="stat-value" id="abuseActiveRecords">0</div>
+                                    <div class="stat-label">活跃监控</div>
+                                </div>
                             </div>
-                            <div class="stat-card red">
+                            <div class="stat-card red abuse-stat">
                                 <div class="stat-icon red">${icon('ban')}</div>
-                                <div class="stat-value" id="abuseBannedCount">0</div>
-                                <div class="stat-label">封禁 IP</div>
+                                <div class="stat-body">
+                                    <div class="stat-value" id="abuseBannedCount">0</div>
+                                    <div class="stat-label">封禁 IP</div>
+                                </div>
                             </div>
-                            <div class="stat-card orange">
+                            <div class="stat-card orange abuse-stat">
                                 <div class="stat-icon orange">${icon('warning')}</div>
-                                <div class="stat-value" id="abuseRecentBlocked">0</div>
-                                <div class="stat-label">最近拦截</div>
+                                <div class="stat-body">
+                                    <div class="stat-value" id="abuseRecentBlocked">0</div>
+                                    <div class="stat-label">最近拦截</div>
+                                </div>
                             </div>
-                            <div class="stat-card green">
+                            <div class="stat-card green abuse-stat">
                                 <div class="stat-icon green">${icon('list')}</div>
-                                <div class="stat-value" id="abuseTotalLogs">0</div>
-                                <div class="stat-label">日志总数</div>
+                                <div class="stat-body">
+                                    <div class="stat-value" id="abuseTotalLogs">0</div>
+                                    <div class="stat-label">日志总数</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1202,7 +2241,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         <div class="card-header"><span class="card-title">Top 活跃 IP（本次运行期间）</span></div>
                         <div class="table-container">
                             <table class="table table-sm" id="topRequestersTable">
-                                <thead><tr><th>IP</th><th>请求数</th><th>API请求</th><th>违规次数</th></tr></thead>
+                                <thead><tr><th>IP</th><th>请求数</th><th>API 请求</th><th>违规次数</th></tr></thead>
                                 <tbody id="topRequestersBody"></tbody>
                             </table>
                         </div>
@@ -1382,6 +2421,13 @@ const getAdminHtml = () => `<!DOCTYPE html>
                     </div>
                 </div>
                 <div class="content-section" id="settingsSection">
+                    <div class="settings-tabs" role="tablist" aria-label="设置分类">
+                        <button type="button" class="settings-tab active" role="tab" id="settingsTabAccount" aria-selected="true" aria-controls="settingsPanelAccount" data-settings-tab="Account">账户</button>
+                        <button type="button" class="settings-tab" role="tab" id="settingsTabSecurity" aria-selected="false" aria-controls="settingsPanelSecurity" data-settings-tab="Security">安全</button>
+                        <button type="button" class="settings-tab" role="tab" id="settingsTabIntegrations" aria-selected="false" aria-controls="settingsPanelIntegrations" data-settings-tab="Integrations">集成与外观</button>
+                        <button type="button" class="settings-tab" role="tab" id="settingsTabCache" aria-selected="false" aria-controls="settingsPanelCache" data-settings-tab="Cache">缓存</button>
+                    </div>
+                    <div class="settings-panel active" id="settingsPanelAccount" role="tabpanel" aria-labelledby="settingsTabAccount" data-settings-panel="Account">
                     <div class="settings-grid">
                         <div class="card settings-section">
                             <h4>${icon('user')} 个人设置</h4>
@@ -1416,7 +2462,11 @@ const getAdminHtml = () => `<!DOCTYPE html>
                                 <button type="submit" class="btn btn-primary">修改密码</button>
                             </form>
                         </div>
+                    </div>
+                    </div>
 
+                    <div class="settings-panel" id="settingsPanelSecurity" role="tabpanel" aria-labelledby="settingsTabSecurity" data-settings-panel="Security">
+                    <div class="settings-grid">
                         <div class="card settings-section" id="adminPathSection">
                             <h4>${icon('shield')} 安全设置</h4>
                             <form id="adminPathForm">
@@ -1444,6 +2494,115 @@ const getAdminHtml = () => `<!DOCTYPE html>
                             </div>
                         </div>
                     </div>
+                    </div>
+
+                    <div class="settings-panel" id="settingsPanelIntegrations" role="tabpanel" aria-labelledby="settingsTabIntegrations" data-settings-panel="Integrations">
+                    <div class="settings-grid">
+                        <div class="card settings-section" id="geoSection">
+                            <h4>${icon('radio')} IP 归属地接口</h4>
+                            <form id="geoForm">
+                                <div class="form-group">
+                                    <label class="checkbox-label"><input type="checkbox" id="geoEnabled" checked> 启用 ShowAPI 在线查询</label>
+                                    <small>关闭后仅使用离线国家库；在线查询只补省/市，不阻塞 /api 响应。</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>ShowAPI appKey</label>
+                                    <input type="password" id="geoApiKey" placeholder="填写 ShowAPI 控制台的 appKey" autocomplete="new-password">
+                                    <small id="geoKeyHint">未配置密钥。重复 IP 只查询一次并缓存在本地。</small>
+                                    <small style="display:block;margin-top:6px;">获取地址：<a href="https://www.showapi.com/console#/myApp" target="_blank" rel="noopener">ShowAPI 控制台 → 我的应用</a>；需为应用开通「全球IP地址查询」。</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>测试 IP</label>
+                                    <div class="input-with-button">
+                                        <input type="text" id="geoTestIp" placeholder="留空则使用当前访问 IP">
+                                        <button type="button" class="btn btn-default btn-sm" onclick="fillMyIp()">获取我的 IP</button>
+                                    </div>
+                                    <small>默认使用当前访问后台的公网 IP（优先 X-Forwarded-For），也可以手动填写；支持 IPv4 / IPv6，IPv6 走 ipwho.is 备用接口。</small>
+                                </div>
+                                <div class="geo-result" id="geoTestResult" style="display:none;"></div>
+                                <p class="user-info-tooltip" id="geoTestStatus" style="margin:6px 0 0;"></p>
+                                <div class="form-row" style="margin-top:12px;">
+                                    <button type="submit" class="btn btn-primary">保存</button>
+                                    <button type="button" class="btn btn-default" onclick="testGeoApi()">测试查询</button>
+                                    <button type="button" class="btn btn-default" onclick="clearGeoCacheConfirm()">清空缓存</button>
+                                </div>
+                                <p class="user-info-tooltip" id="geoCacheInfo" style="margin-top:10px;">本地缓存 0 个 IP</p>
+                            </form>
+                        </div>
+
+                        <div class="card settings-section" id="loginBgSection">
+                            <h4>${icon('image')} 登录页背景</h4>
+                            <form id="loginBgForm">
+                                <div class="form-group">
+                                    <label class="checkbox-label"><input type="checkbox" id="loginBgEnabled" checked> 启用 ACG 随机背景图</label>
+                                    <small>由 uapis.cn 随机图接口提供。服务端抓取后缓存，刷新登录页始终是同一张。</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>图片接口地址</label>
+                                    <input type="url" id="loginBgApiUrl" required placeholder="https://uapis.cn/api/v1/random/image?category=acg">
+                                    <small>默认 <code>category=acg</code>；换分类只需修改这里的 query 参数。</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>缓存有效期（小时）</label>
+                                    <input type="number" id="loginBgTtlHours" min="1" max="168" step="1" value="6" required>
+                                    <small>到期后自动换一张；期间所有访问共用同一张，建议 6~24 小时。</small>
+                                </div>
+                                <div class="login-bg-preview is-empty" id="loginBgPreviewWrap">
+                                    <img id="loginBgPreview" alt="登录页背景预览"${loginBgPreviewSrc} onload="this.parentElement.classList.remove('is-empty')" onerror="this.parentElement.classList.add('is-empty')">
+                                </div>
+                                <p class="user-info-tooltip" id="loginBgCacheInfo" style="margin-bottom:12px;">正在读取缓存状态…</p>
+                                <div class="form-row">
+                                    <button type="submit" class="btn btn-primary">保存</button>
+                                    <button type="button" class="btn btn-default" id="loginBgRefreshBtn" onclick="refreshLoginBg()">立即换一张</button>
+                                    <button type="button" class="btn btn-default" onclick="clearLoginBgCacheConfirm()">清除缓存</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    </div>
+
+                    <div class="settings-panel" id="settingsPanelCache" role="tabpanel" aria-labelledby="settingsTabCache" data-settings-panel="Cache">
+                    <div class="settings-grid">
+                        <div class="card settings-section" id="cacheSection">
+                            <h4>${icon('dashboard')} /api 响应缓存</h4>
+                            <form id="cacheForm">
+                                <div class="form-group">
+                                    <label class="checkbox-label"><input type="checkbox" id="cacheEnabled" checked> 启用响应缓存</label>
+                                    <small>只缓存成功结果；关闭后所有请求直接回源。</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>分类型 TTL（分钟）</label>
+                                    <div class="cache-ttl-grid" id="cacheTtlGrid"></div>
+                                    <small>TTL 应大于同一 id 的重复拉取间隔；直链建议 10 分钟，歌单/歌词建议 30~60 分钟。</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>最大缓存条目</label>
+                                    <input type="number" id="cacheMaxEntries" min="50" max="100000" step="50" value="500" required>
+                                    <small>超出后按插入顺序淘汰最旧条目。</small>
+                                </div>
+                                <p class="user-info-tooltip" id="cacheEnvNote" style="margin-bottom:12px;"></p>
+                                <div class="form-row">
+                                    <button type="submit" class="btn btn-primary">保存缓存配置</button>
+                                    <button type="button" class="btn btn-default" onclick="clearApiCacheConfirm()">清空缓存</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="card settings-section">
+                            <h4>${icon('radio')} 运行统计</h4>
+                            <div class="cache-stat-grid">
+                                <div class="cache-stat"><span>缓存条目</span><b id="cacheStatSize">-</b></div>
+                                <div class="cache-stat"><span>命中率</span><b id="cacheStatHitRate">-</b></div>
+                                <div class="cache-stat"><span>命中 / 未命中</span><b id="cacheStatHits">-</b></div>
+                                <div class="cache-stat"><span>写入 / 淘汰</span><b id="cacheStatSets">-</b></div>
+                                <div class="cache-stat"><span>跳过（超大）</span><b id="cacheStatSkipped">-</b></div>
+                                <div class="cache-stat"><span>状态</span><b id="cacheStatEnabled">-</b></div>
+                            </div>
+                            <p class="user-info-tooltip" id="cacheStatsInfo" style="margin:8px 0 12px;">最近读取的缓存统计</p>
+                            <button type="button" class="btn btn-default" onclick="loadCacheConfig()">刷新统计</button>
+                        </div>
+                    </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1452,7 +2611,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
     <div class="modal" id="cookieModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="cookieModalTitle">添加Cookie</h3>
+                <h3 id="cookieModalTitle">添加 Cookie</h3>
                 <button class="modal-close" onclick="closeModal('cookieModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -1466,8 +2625,8 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Cookie数据</label>
-                        <textarea id="cookieData" rows="4" required placeholder="请粘贴Cookie数据"></textarea>
+                        <label>Cookie 数据</label>
+                        <textarea id="cookieData" rows="4" required placeholder="请粘贴 Cookie 数据"></textarea>
                     </div>
                     <div class="form-group">
                         <label>备注</label>
@@ -1480,8 +2639,9 @@ const getAdminHtml = () => `<!DOCTYPE html>
                         <label class="checkbox-label"><input type="checkbox" id="cookieActive" checked> 启用此Cookie</label>
                     </div>
                 </form>
-                <span class="help-link" onclick="toggleCookieHelp()">${icon('help')} 如何获取Cookie？</span>
+                <span class="help-link" onclick="toggleCookieHelp()">${icon('help')} 如何获取 Cookie？</span>
                 <div class="help-content" id="cookieHelpContent">
+                    ${neteaseQrLoginEnabled ? '<p style="margin-bottom:12px;color:var(--text-secondary);font-size:12px;">网易云音乐可以直接用列表上方的「网易云扫码登录」，下面的手动步骤只在扫码不可用时使用。</p>' : ''}
                     <div class="help-section">
                         <h4>网易云音乐 Cookie 获取方法：</h4>
                         <ol>
@@ -1512,6 +2672,35 @@ const getAdminHtml = () => `<!DOCTYPE html>
             </div>
         </div>
     </div>
+
+    ${neteaseQrLoginEnabled ? `
+    <div class="modal" id="qrLoginModal">
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-header">
+                <h3>${icon('qr')} 网易云扫码登录</h3>
+                <button class="modal-close" onclick="closeQrLogin()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="text-align:center;">
+                    <div style="display:inline-block;padding:12px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);min-width:264px;min-height:264px;">
+                        <div id="qrLoginPlaceholder" style="display:flex;align-items:center;justify-content:center;height:240px;color:var(--text-secondary);font-size:13px;">正在生成二维码…</div>
+                        <img id="qrLoginImage" alt="网易云音乐登录二维码" style="display:none;width:240px;height:240px;">
+                    </div>
+                    <p id="qrLoginStatus" style="margin-top:14px;font-size:13px;color:var(--text-secondary);">正在生成二维码…</p>
+                    <div id="qrLoginDebug" style="margin-top:4px;font-size:11px;color:var(--text-secondary);opacity:.7;"></div>
+                    <p style="margin-top:6px;font-size:12px;line-height:1.7;color:var(--text-secondary);">
+                        用网易云音乐 App 扫码，并在手机上点「确认登录」。<br>
+                        确认后会自动保存并验证，无需再复制 Cookie。
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" onclick="closeQrLogin()">取消</button>
+                <button type="button" class="btn btn-primary" id="qrLoginRefreshBtn" onclick="refreshQrLogin()">刷新二维码</button>
+            </div>
+        </div>
+    </div>
+    ` : ''}
 
     <div class="modal" id="userModal">
         <div class="modal-content">
@@ -1664,6 +2853,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
     <script>
         let authToken = localStorage.getItem('authToken');
         let authUsername = localStorage.getItem('authUsername');
+        const QR_LOGIN_ENABLED = ${neteaseQrLoginEnabled};
 
         const api = async (url, options = {}) => {
             const headers = {
@@ -1733,6 +2923,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
         };
 
         const showLogin = () => {
+            document.body.classList.remove('auth-pending');
             document.getElementById('loginContainer').style.display = 'flex';
             document.getElementById('adminContainer').style.display = 'none';
             document.getElementById('loginBox').style.display = 'block';
@@ -1740,6 +2931,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
         };
 
         const showAdmin = () => {
+            document.body.classList.remove('auth-pending');
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('adminContainer').style.display = 'block';
             document.getElementById('currentUser').textContent = authUsername;
@@ -1757,12 +2949,192 @@ const getAdminHtml = () => `<!DOCTYPE html>
                 currentUserRole = checkRes.data.role;
                 if (currentUserRole !== 'admin') {
                     document.getElementById('adminPathSection').style.display = 'none';
+                    document.getElementById('loginBgSection').style.display = 'none';
+                    document.getElementById('clearLogsBtn').style.display = 'none';
                     return;
                 }
+                document.getElementById('clearLogsBtn').style.display = '';
             }
             const res = await api('/admin/config');
             if (res?.success && res.data?.adminPath) {
                 document.getElementById('adminPathInput').value = res.data.adminPath;
+            }
+            await loadGeoConfig();
+        };
+
+        const loadGeoConfig = async () => {
+            try {
+                const res = await api('/admin/geo');
+                if (!res?.success) return;
+                const d = res.data || {};
+                const enabled = document.getElementById('geoEnabled');
+                if (enabled) enabled.checked = d.enabled !== false;
+                const keyInput = document.getElementById('geoApiKey');
+                if (keyInput) {
+                    keyInput.value = '';
+                    keyInput.placeholder = d.hasKey
+                        ? '已配置 ' + d.keyPreview + '，留空保持不变'
+                        : '填写 ShowAPI 控制台的 appKey';
+                }
+                const hint = document.getElementById('geoKeyHint');
+                if (hint) {
+                    hint.textContent = d.hasKey
+                        ? '密钥已配置；重复 IP 只查询一次并缓存在本地。'
+                        : '未配置密钥；IPv4 仅使用离线国家库，IPv6 走 ipwho.is 备用接口。';
+                }
+                const cache = document.getElementById('geoCacheInfo');
+                if (cache) cache.textContent = '本地缓存 ' + (d.cacheSize || 0) + ' 个 IP，有效期 ' + (d.cacheTtlDays || 30) + ' 天';
+                const ipInput = document.getElementById('geoTestIp');
+                if (ipInput && !ipInput.value.trim()) fillMyIp(true);
+            } catch (_) {}
+        };
+
+        const formatLoginBgSize = (bytes) => {
+            if (!bytes) return '-';
+            if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+            return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+        };
+
+        const renderLoginBgPreview = (d) => {
+            const wrap = document.getElementById('loginBgPreviewWrap');
+            const img = document.getElementById('loginBgPreview');
+            const info = document.getElementById('loginBgCacheInfo');
+            if (!wrap || !img || !info) return;
+            const enabled = d?.enabled !== false;
+            wrap.style.display = enabled ? '' : 'none';
+            if (!enabled) {
+                info.textContent = '背景图已关闭，登录页使用默认渐变背景。';
+                return;
+            }
+            const cache = d?.cache;
+            if (cache && cache.fetchedAt) {
+                const at = new Date(cache.fetchedAt).toLocaleString('zh-CN');
+                const suffix = cache.stale ? '，已过期（下次访问自动更换）' : '，刷新登录页不会换图';
+                info.textContent = '已缓存 1 张（' + formatLoginBgSize(cache.size) + '），抓取于 ' + at + suffix;
+                wrap.classList.remove('is-empty');
+                img.src = '/admin/login-bg?v=' + cache.fetchedAt;
+            } else {
+                info.textContent = '正在获取背景图…（若长时间空白，点「立即换一张」）';
+                wrap.classList.add('is-empty');
+                if (!img.getAttribute('src')) img.src = '/admin/login-bg';
+            }
+        };
+
+        const loadLoginBgConfig = async () => {
+            try {
+                const res = await api('/admin/login-bg/settings');
+                if (!res?.success) return;
+                const d = res.data || {};
+                const enabled = document.getElementById('loginBgEnabled');
+                if (enabled) enabled.checked = d.enabled !== false;
+                const urlInput = document.getElementById('loginBgApiUrl');
+                if (urlInput) urlInput.value = d.apiUrl || '';
+                const ttlInput = document.getElementById('loginBgTtlHours');
+                if (ttlInput) ttlInput.value = d.ttlHours || 6;
+                renderLoginBgPreview(d);
+            } catch (_) {}
+        };
+
+        const renderCacheStats = (d) => {
+            const stats = d?.stats || {};
+            const setText = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            };
+            const total = (stats.hits || 0) + (stats.misses || 0);
+            setText('cacheStatSize', String(stats.size || 0) + ' / ' + String(d?.maxEntries || stats.maxEntries || '-'));
+            setText('cacheStatHitRate', total ? ((stats.hitRate || 0) * 100).toFixed(1) + '%' : '暂无请求');
+            setText('cacheStatHits', String(stats.hits || 0) + ' / ' + String(stats.misses || 0));
+            setText('cacheStatSets', String(stats.sets || 0) + ' / ' + String(stats.evictions || 0));
+            setText('cacheStatSkipped', String(stats.skipped || 0));
+            setText('cacheStatEnabled', d?.envLocked ? '被环境变量关闭' : (d?.enabled ? '运行中' : '已关闭'));
+
+            const maxValueMb = stats.maxValueBytes ? (stats.maxValueBytes / 1048576).toFixed(1) + ' MB' : '-';
+            const info = document.getElementById('cacheStatsInfo');
+            if (info) {
+                info.textContent = '单条上限 ' + maxValueMb + '；TTL 修改保存后旧缓存会自动清空。';
+            }
+            const envNote = document.getElementById('cacheEnvNote');
+            if (envNote) {
+                if (d?.envLocked) {
+                    envNote.textContent = '环境变量 CACHE_ENABLED=0 已强制关闭缓存，后台开关不会生效。';
+                } else if (d?.envGlobalTtlSeconds) {
+                    envNote.textContent = '环境变量 CACHE_TTL_SECONDS=' + d.envGlobalTtlSeconds + ' 当前作为默认值；保存后以本页分类型 TTL 为准。';
+                } else {
+                    envNote.textContent = '环境变量未覆盖；保存后以本页配置为准。';
+                }
+            }
+        };
+
+        const loadCacheConfig = async () => {
+            try {
+                const res = await api('/admin/cache');
+                if (!res?.success) return;
+                const d = res.data || {};
+                const enabled = document.getElementById('cacheEnabled');
+                if (enabled) {
+                    enabled.checked = d.enabled !== false && !d.envLocked;
+                    enabled.disabled = !!d.envLocked;
+                }
+                const maxEntries = document.getElementById('cacheMaxEntries');
+                if (maxEntries) maxEntries.value = d.maxEntries || 500;
+
+                const grid = document.getElementById('cacheTtlGrid');
+                if (grid) {
+                    const types = Array.isArray(d.types) && d.types.length ? d.types : [];
+                    grid.innerHTML = types.map((t) => {
+                        const minutes = Number(d.ttlByType?.[t.key]) || 60;
+                        return '<div class="cache-ttl-item">'
+                            + '<label>' + escapeHtml(t.label) + '</label>'
+                            + '<div class="cache-ttl-input"><input type="number" data-cache-ttl="' + escapeHtml(t.key) + '" min="1" max="10080" step="1" value="' + minutes + '"><span class="unit">分钟</span></div>'
+                            + '</div>';
+                    }).join('');
+                }
+                renderCacheStats(d);
+            } catch (_) {}
+        };
+
+        const clearApiCacheConfirm = async () => {
+            if (!confirm('确定清空 /api 响应缓存？清空后下一次请求会重新回源。')) return;
+            const res = await api('/admin/cache/clear', { method: 'POST' });
+            if (res?.success) {
+                showToast('响应缓存已清空');
+                renderCacheStats(res.data);
+            } else {
+                showToast(res?.error || '清空缓存失败', 'error');
+            }
+        };
+
+        const doRefreshLoginBg = async (silent) => {
+            const res = await api('/admin/login-bg/refresh', { method: 'POST' });
+            if (res?.success) {
+                renderLoginBgPreview(res.data);
+                if (res.warning) showToast('已换图，但新图抓取失败：' + res.warning, 'error');
+                else showToast(silent ? '背景图已缓存' : '已更换背景图');
+            } else {
+                showToast(res?.error || '更换背景图失败', 'error');
+            }
+            return res;
+        };
+
+        const refreshLoginBg = async () => {
+            const btn = document.getElementById('loginBgRefreshBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '抓取中…'; }
+            try {
+                await doRefreshLoginBg(false);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = '立即换一张'; }
+            }
+        };
+
+        const clearLoginBgCacheConfirm = async () => {
+            if (!confirm('清除后，下次打开登录页会重新抓取一张随机图。确定清除？')) return;
+            const res = await api('/admin/login-bg/cache/clear', { method: 'POST' });
+            if (res?.success) {
+                showToast('背景图缓存已清除');
+                renderLoginBgPreview(res.data);
+            } else {
+                showToast(res?.error || '清除缓存失败', 'error');
             }
         };
 
@@ -1778,16 +3150,46 @@ const getAdminHtml = () => `<!DOCTYPE html>
             document.querySelector('[data-section="' + section + '"]').classList.add('active');
             document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
             document.getElementById(section + 'Section').classList.add('active');
-            const titles = { dashboard: '仪表盘', cookies: 'Cookie管理', monitor: 'Cookie监测', tokens: 'API Token', abuse: '滥用防护', users: '用户管理', logs: '操作日志', apilogs: 'API调用日志', settings: '设置' };
+            const titles = { dashboard: '仪表盘', cookies: 'Cookie 与监测', tokens: 'API Token', abuse: '滥用防护', users: '用户管理', logs: '操作日志', apilogs: 'API 调用日志', settings: '设置' };
             document.getElementById('pageTitle').textContent = titles[section];
-            if (section === 'cookies') loadCookies();
+            if (section === 'cookies') { loadCookies(); loadMonitor(); }
+            if (section === 'dashboard') loadDashboard();
             if (section === 'users') loadUsers();
             if (section === 'logs') loadLogs();
-            if (section === 'apilogs') loadApiLogs(1);
-            if (section === 'monitor') loadMonitor();
+            if (section === 'apilogs') { loadApiLogs(1); loadReferers(); }
             if (section === 'tokens') loadTokens();
             if (section === 'abuse') loadAbuse();
+            if (section === 'settings') { loadGeoConfig(); loadLoginBgConfig(); loadCacheConfig(); }
         };
+
+        // 设置页分类选项卡
+        const settingsTabs = Array.from(document.querySelectorAll('.settings-tab'));
+        const settingsPanels = Array.from(document.querySelectorAll('.settings-panel'));
+        const activateSettingsTab = (tab) => {
+            if (!tab) return;
+            const target = tab.dataset.settingsTab;
+            settingsTabs.forEach((t) => {
+                const active = t === tab;
+                t.classList.toggle('active', active);
+                t.setAttribute('aria-selected', active ? 'true' : 'false');
+                t.tabIndex = active ? 0 : -1;
+            });
+            settingsPanels.forEach((panel) => {
+                panel.classList.toggle('active', panel.dataset.settingsPanel === target);
+            });
+        };
+        settingsTabs.forEach((tab, index) => {
+            tab.tabIndex = tab.classList.contains('active') ? 0 : -1;
+            tab.addEventListener('click', () => activateSettingsTab(tab));
+            tab.addEventListener('keydown', (e) => {
+                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                e.preventDefault();
+                const offset = e.key === 'ArrowRight' ? 1 : -1;
+                const next = settingsTabs[(index + offset + settingsTabs.length) % settingsTabs.length];
+                activateSettingsTab(next);
+                next.focus();
+            });
+        });
 
         const loadAbuse = async () => {
             await Promise.all([loadAbuseStats(), loadAbuseConfig(), loadAbuseBans(), loadAbuseLogs(1)]);
@@ -2103,56 +3505,196 @@ const getAdminHtml = () => `<!DOCTYPE html>
         });
 
         const loadDashboard = async () => {
-            const [cookiesRes, usersRes, logsRes] = await Promise.all([
-                api('/admin/cookies'),
-                api('/admin/users'),
-                api('/admin/logs?limit=5')
+            const [statsRes, seriesRes, refsRes, cookiesRes, bansRes, logsRes] = await Promise.all([
+                api('/admin/api-logs/stats').catch(() => null),
+                api('/admin/api-logs/timeseries?hours=24').catch(() => null),
+                api('/admin/api-logs/referers?hours=24&limit=6').catch(() => null),
+                api('/admin/cookies').catch(() => null),
+                api('/admin/abuse/bans').catch(() => null),
+                api('/admin/logs?limit=6').catch(() => null)
             ]);
-            if (cookiesRes?.success) {
-                document.getElementById('totalCookies').textContent = cookiesRes.data.length;
-                document.getElementById('validCookies').textContent = cookiesRes.data.filter(c => c.isValid === true).length;
+
+            const setText = (id, value) => {
+                const node = document.getElementById(id);
+                if (node) node.textContent = value;
+            };
+            const barRow = (name, count, share) => {
+                const pct = Math.max(2, Math.round((share || 0) * 100));
+                return '<div class="list-row"><span class="list-name">' + escapeHtml(name) + '</span>' +
+                    '<span class="share"><i style="width:' + pct + '%"></i></span>' +
+                    '<span class="list-val">' + count + '</span></div>';
+            };
+            const emptyRow = (text) => '<p class="user-info-tooltip">' + escapeHtml(text) + '</p>';
+
+            const stats = statsRes?.success ? statsRes.data : null;
+            const total = stats?.last24h || 0;
+            const success = stats?.byStatus?.success || 0;
+            setText('kpiCalls', total);
+            setText('kpiCallsSub', '累计 ' + (stats?.total || 0));
+            setText('kpiRate', total ? Math.round(success / total * 100) + '%' : '-');
+            setText('kpiIPs', stats?.uniqueIPs24h ?? '-');
+
+            const cookies = cookiesRes?.success ? cookiesRes.data : [];
+            const valid = cookies.filter(c => c.isValid === true).length;
+            setText('kpiCookies', valid + ' / ' + cookies.length);
+            setText('kpiBans', bansRes?.success ? bansRes.data.length : '-');
+
+            const refs = refsRes?.success ? refsRes.data : null;
+            setText('kpiSources', refs ? refs.uniqueHosts : '-');
+
+            // 24 小时柱状图：橙=成功，红=失败
+            const bars = document.getElementById('boardBars');
+            const series = seriesRes?.success ? seriesRes.data : [];
+            if (bars) {
+                const max = Math.max(1, ...series.map(item => item.total));
+                bars.innerHTML = series.map(item => {
+                    const height = Math.round((item.total / max) * 100);
+                    const errHeight = item.total ? Math.round((item.error / item.total) * height) : 0;
+                    const okHeight = height - errHeight;
+                    const hour = new Date(item.t).getHours();
+                    const title = hour + ':00 · ' + item.total + ' 次 · 失败 ' + item.error;
+                    return '<div class="bar" title="' + title + '">' +
+                        '<span class="ok" style="height:' + okHeight + '%"></span>' +
+                        '<span class="err" style="height:' + errHeight + '%"></span></div>';
+                }).join('');
             }
-            if (usersRes?.success) {
-                document.getElementById('totalUsers').textContent = usersRes.data.length;
+            const axis = document.getElementById('boardAxis');
+            if (axis) {
+                axis.innerHTML = series.map((item, index) => index % 4 === 0
+                    ? '<span>' + new Date(item.t).getHours() + '时</span>'
+                    : '<span></span>').join('');
             }
-            if (logsRes?.success) {
-                document.getElementById('totalLogs').textContent = logsRes.data.length;
-                const tbody = document.getElementById('recentLogs');
-                tbody.innerHTML = logsRes.data.slice(0, 5).map(log => '<tr><td>' + escapeHtml(formatDate(log.timestamp)) + '</td><td>' + escapeHtml(log.action) + '</td><td>' + escapeHtml(log.details) + '</td><td>' + escapeHtml(log.username) + '</td></tr>').join('');
+
+            const types = Object.entries(stats?.byType || {}).sort((a, b) => b[1] - a[1]);
+            const typeTotal = types.reduce((sum, entry) => sum + entry[1], 0) || 1;
+            const typeBox = document.getElementById('boardTypes');
+            if (typeBox) {
+                typeBox.innerHTML = types.length
+                    ? types.map(entry => barRow(entry[0], entry[1], entry[1] / typeTotal)).join('')
+                    : emptyRow('近 24 小时暂无调用');
+            }
+
+            const sources = document.getElementById('boardSources');
+            if (sources) {
+                const items = refs?.items || [];
+                sources.innerHTML = items.length
+                    ? items.map(item => barRow(item.host === 'direct' ? '直接访问' : item.host, item.count, item.share)).join('')
+                    : emptyRow('暂无来源记录');
+            }
+
+            const cookieBox = document.getElementById('boardCookies');
+            if (cookieBox) {
+                const groups = {};
+                for (const cookie of cookies) {
+                    const key = cookie.platform || '其他';
+                    groups[key] = groups[key] || { total: 0, valid: 0 };
+                    groups[key].total++;
+                    if (cookie.isValid === true) groups[key].valid++;
+                }
+                const entries = Object.entries(groups).sort((a, b) => b[1].total - a[1].total);
+                cookieBox.innerHTML = entries.length
+                    ? entries.map(entry => {
+                        const health = entry[1].total ? entry[1].valid / entry[1].total : 0;
+                        const label = getPlatformName(entry[0]) + ' · ' + entry[1].valid + '/' + entry[1].total;
+                        return barRow(label, Math.round(health * 100) + '%', health);
+                    }).join('')
+                    : emptyRow('还没有配置 Cookie');
+            }
+
+            const ops = document.getElementById('boardOps');
+            if (ops) {
+                const items = logsRes?.success ? logsRes.data : [];
+                ops.innerHTML = items.length
+                    ? items.map(log => '<div class="list-row"><span class="list-name">' + escapeHtml(log.action) + '</span>' +
+                        '<span class="list-val">' + escapeHtml(formatDate(log.timestamp)) + '</span></div>').join('')
+                    : emptyRow('暂无操作记录');
             }
         };
 
         const loadCookies = async () => {
             const res = await api('/admin/cookies');
             if (!res?.success) return;
-            const tbody = document.getElementById('cookiesList');
-            if (res.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="empty-state-icon">${icon('cookie')}</div><div class="empty-state-text">暂无Cookie数据</div></td></tr>';
+            const grid = document.getElementById('cookiesList');
+            if (!grid) return;
+            if (!res.data || res.data.length === 0) {
+                grid.innerHTML = '<div class="cookie-empty"><div class="empty-state-icon">${icon('cookie')}</div><div class="empty-state-text">暂无 Cookie 数据</div><p>' + (QR_LOGIN_ENABLED ? '用右上角的「网易云扫码登录」或「手动添加」接入一个账号。' : '用右上角的「添加 Cookie」接入一个账号。') + '</p></div>';
                 return;
             }
-            tbody.innerHTML = res.data.map(cookie => {
-                let vipAbilityText = '';
-                if (cookie.userInfo) {
-                    if (cookie.userInfo.canPlayVip) {
-                        vipAbilityText = '<span style="color:var(--success);">${icon('check')} 可播放VIP音乐</span>';
-                    } else {
-                        vipAbilityText = '<span style="color:var(--danger);">${icon('xmark')} 不可播放VIP音乐</span>';
-                    }
-                }
-                return '<tr>' +
-                    '<td><span class="badge badge-primary">' + escapeHtml(getPlatformName(cookie.platform)) + '</span></td>' +
-                    '<td class="cookie-preview" title="' + escapeHtml(cookie.cookiePreview || '') + '">' + escapeHtml(cookie.cookiePreview || '-') + '</td>' +
-                    '<td>' + escapeHtml(cookie.note || '-') + '</td>' +
-                    '<td><div class="validation-status">' + getValidationBadge(cookie) + '</div>' +
-                    (vipAbilityText ? '<div class="user-info-tooltip">' + vipAbilityText + '</div>' : '') +
-                    (cookie.validationError ? '<div style="color:var(--danger);font-size:11px;">' + escapeHtml(cookie.validationError) + '</div>' : '') + '</td>' +
-                    '<td>' + (cookie.isActive ? '<span class="status-dot status-active"></span>启用' : '<span class="status-dot status-inactive"></span>禁用') + '</td>' +
-                    '<td>' + escapeHtml(formatDate(cookie.createdAt)) + '</td>' +
-                    '<td class="actions">' +
-                        '<button class="btn btn-success btn-sm" onclick="verifyCookie(\\'' + escapeHtml(cookie.id) + '\\')">验证</button>' +
+            grid.innerHTML = res.data.map(cookie => {
+                const user = cookie.userInfo || {};
+                const name = user.nickname || cookie.note || '未命名账号';
+                const initial = String(name).trim().charAt(0) || (cookie.platform === 'netease' ? '网' : 'Q');
+                const avatar = user.avatarUrl ? String(user.avatarUrl).replace(/^http:/, 'https:') : '';
+                const uid = user.userId ? 'UID ' + user.userId : '未绑定账号信息';
+                const validity = cookie.isValid === true
+                    ? '<span class="badge badge-success">有效</span>'
+                    : cookie.isValid === false
+                        ? '<span class="badge badge-error">无效</span>'
+                        : '<span class="badge badge-warning">未验证</span>';
+                const roleLabel = user.vipRoleLabel || (user.isVip ? 'VIP' : '普通用户');
+                const roleClass = user.vipRole === 'svip'
+                    ? 'svip'
+                    : (user.vipRole === 'vip' || user.isVip) ? 'ok' : 'muted';
+                const pad2 = (n) => String(n).padStart(2, '0');
+                const shortDateTime = (ts) => {
+                    if (!ts) return '';
+                    const d = new Date(ts);
+                    if (Number.isNaN(d.getTime())) return '-';
+                    return pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+                };
+                const shortDate = (ts) => {
+                    if (!ts) return '-';
+                    const d = new Date(ts);
+                    if (Number.isNaN(d.getTime())) return '-';
+                    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+                };
+                const lastValid = cookie.validatedAt ? shortDateTime(cookie.validatedAt) : '未验证';
+                const created = shortDate(cookie.createdAt);
+                const noteRow = cookie.note
+                    ? '<div class="cookie-kv"><span class="cookie-kv-label">备注</span><span class="cookie-kv-value">' + escapeHtml(cookie.note) + '</span></div>'
+                    : '';
+                const errorRow = cookie.validationError
+                    ? '<p class="cookie-error">' + escapeHtml(cookie.validationError) + '</p>'
+                    : '';
+                return '<article class="cookie-card' + (cookie.isActive ? '' : ' is-inactive') + '">' +
+                    '<div class="cookie-card-head">' +
+                        '<div class="cookie-avatar' + (avatar ? '' : ' is-fallback') + '">' +
+                            (avatar ? '<img src="' + escapeHtml(avatar) + '" alt="" loading="lazy" onerror="this.style.display=\\'none\\';this.parentElement.classList.add(\\'is-fallback\\')">' : '') +
+                            '<span>' + escapeHtml(initial) + '</span>' +
+                        '</div>' +
+                        '<div class="cookie-identity">' +
+                            '<div class="cookie-platform">' +
+                                '<span class="cookie-platform-ico" data-platform="' + escapeHtml(cookie.platform) + '"></span>' +
+                                '<span>' + escapeHtml(getPlatformName(cookie.platform)) + '</span>' +
+                                validity +
+                            '</div>' +
+                            '<div class="cookie-name">' + escapeHtml(name) + '</div>' +
+                            '<div class="cookie-sub">' + escapeHtml(uid) + '</div>' +
+                        '</div>' +
+                        '<div class="cookie-head-side">' +
+                            '<label class="ck-switch" title="' + (cookie.isActive ? '点击禁用' : '点击启用') + '">' +
+                                '<input type="checkbox" ' + (cookie.isActive ? 'checked ' : '') + 'aria-label="启用此 Cookie" onchange="toggleCookieActive(\\'' + escapeHtml(cookie.id) + '\\', this.checked)">' +
+                                '<span class="ck-track"><span class="ck-thumb"></span></span>' +
+                            '</label>' +
+                            '<span class="cookie-active-text">' + (cookie.isActive ? '启用' : '禁用') + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="cookie-card-body">' +
+                        '<div class="cookie-kv"><span class="cookie-kv-label">Cookie</span><span class="cookie-kv-value"><code class="cookie-preview-line" title="' + escapeHtml(cookie.cookiePreview || '') + '">' + escapeHtml(cookie.cookiePreview || '-') + '</code></span></div>' +
+                        noteRow +
+                        '<div class="cookie-facts">' +
+                            '<div class="cookie-fact"><span class="cookie-fact-label">角色</span><span class="cookie-fact-value ' + roleClass + '">' + escapeHtml(roleLabel) + '</span></div>' +
+                            '<div class="cookie-fact"><span class="cookie-fact-label">最近验证</span><span class="cookie-fact-value muted" title="' + escapeHtml(cookie.validatedAt ? formatDate(cookie.validatedAt) : '未验证') + '">' + escapeHtml(lastValid) + '</span></div>' +
+                            '<div class="cookie-fact"><span class="cookie-fact-label">创建时间</span><span class="cookie-fact-value muted" title="' + escapeHtml(formatDate(cookie.createdAt)) + '">' + escapeHtml(created) + '</span></div>' +
+                        '</div>' +
+                        errorRow +
+                    '</div>' +
+                    '<div class="cookie-card-foot"><div class="cookie-actions">' +
+                        '<button class="btn btn-default btn-sm" onclick="verifyCookie(\\'' + escapeHtml(cookie.id) + '\\')">验证</button>' +
                         '<button class="btn btn-default btn-sm" onclick="editCookie(\\'' + escapeHtml(cookie.id) + '\\')">编辑</button>' +
                         '<button class="btn btn-danger btn-sm" onclick="deleteCookie(\\'' + escapeHtml(cookie.id) + '\\')">删除</button>' +
-                    '</td></tr>';
+                    '</div></div>' +
+                '</article>';
             }).join('');
         };
 
@@ -2167,12 +3709,28 @@ const getAdminHtml = () => `<!DOCTYPE html>
             const res = await api('/admin/logs?limit=100');
             if (!res?.success) return;
             const tbody = document.getElementById('logsList');
+            if (!res.data || res.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state-text">暂无操作日志</td></tr>';
+                return;
+            }
             tbody.innerHTML = res.data.map(log => '<tr><td>' + escapeHtml(formatDate(log.timestamp)) + '</td><td>' + escapeHtml(log.action) + '</td><td>' + escapeHtml(log.details) + '</td><td>' + escapeHtml(log.username) + '</td></tr>').join('');
+        };
+
+        const clearOperationLogs = async () => {
+            if (!confirm('确定清空所有操作日志？此操作不可恢复。')) return;
+            const res = await api('/admin/logs', { method: 'DELETE' });
+            if (res?.success) {
+                showToast('已清空 ' + (res.data?.count ?? 0) + ' 条操作日志');
+                loadLogs();
+            } else {
+                showToast(res?.error || '清空失败', 'error');
+            }
         };
 
         // === API 调用日志 ===
         let apiLogCurrentPage = 1;
         let apiLogTotalPages = 1;
+        let apiLogTotalCount = 0;
 
         const getApiLogFilters = () => ({
             startTime: document.getElementById('apiLogStartTime').value ? new Date(document.getElementById('apiLogStartTime').value).getTime() : '',
@@ -2196,7 +3754,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
         };
 
         const updateApiLogPagination = () => {
-            document.getElementById('apiLogTotalCount').textContent = '...';
+            document.getElementById('apiLogTotalCount').textContent = apiLogTotalCount;
             document.getElementById('apiLogCurrentPage').textContent = apiLogCurrentPage;
             document.getElementById('apiLogTotalPages').textContent = apiLogTotalPages;
             document.getElementById('apiLogPageInfo').textContent = apiLogCurrentPage;
@@ -2218,6 +3776,45 @@ const getAdminHtml = () => `<!DOCTYPE html>
             } catch (_) {}
         };
 
+        const loadReferers = async () => {
+            const tbody = document.getElementById('refererList');
+            if (!tbody) return;
+            const hours = document.getElementById('refererHours')?.value || '24';
+            try {
+                const res = await api('/admin/api-logs/referers?hours=' + encodeURIComponent(hours));
+                if (!res?.success) return;
+                const data = res.data || {};
+                if (!data.items || data.items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">该时间范围内没有来源记录</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.items.map(item => {
+                    const host = item.host === 'direct' ? '直接访问' : escapeHtml(item.host);
+                    const share = (item.share * 100).toFixed(1) + '%';
+                    const region = item.topRegion || (item.topCountry && item.topCountry !== '??' ? item.topCountry : '');
+                    return '<tr><td>' + host + '</td><td>' + item.count + '</td><td>' + share + '</td><td>' +
+                        item.uniqueIPs + '</td><td>' + escapeHtml(item.topServer || '-') + '</td><td>' +
+                        escapeHtml(region || '-') + '</td><td>' +
+                        escapeHtml(formatDate(item.lastSeen)) + '</td></tr>';
+                }).join('');
+                const countryBox = document.getElementById('refererCountries');
+                if (countryBox) {
+                    const regions = (data.regions || [])
+                        .filter(item => item.label && item.label !== '??')
+                        .slice(0, 8)
+                        .map(item => item.label + ' ' + (item.share * 100).toFixed(0) + '%');
+                    const countries = (data.countries || [])
+                        .filter(item => item.code && item.code !== '??')
+                        .slice(0, 8)
+                        .map(item => item.code + ' ' + (item.share * 100).toFixed(0) + '%');
+                    const parts = regions.length ? regions : countries;
+                    countryBox.textContent = parts.length ? '地区分布：' + parts.join(' · ') : '地区分布：暂无可用归属地（IPv6 或保留地址）';
+                }
+            } catch (_) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#c22f28;">来源统计加载失败</td></tr>';
+            }
+        };
+
         const loadApiLogs = async (page = 1) => {
             apiLogCurrentPage = page;
             const filters = getApiLogFilters();
@@ -2235,7 +3832,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
 
             const { items, total, totalPages } = res;
             apiLogTotalPages = totalPages;
-            document.getElementById('apiLogTotalCount').textContent = total;
+            apiLogTotalCount = total;
 
             const tbody = document.getElementById('apiLogsList');
             if (items.length === 0) {
@@ -2444,7 +4041,7 @@ const getAdminHtml = () => `<!DOCTYPE html>
         };
 
         const showAddCookieModal = () => {
-            document.getElementById('cookieModalTitle').textContent = '添加Cookie';
+            document.getElementById('cookieModalTitle').textContent = '添加 Cookie';
             document.getElementById('cookieForm').reset();
             document.getElementById('cookieId').value = '';
             document.getElementById('cookieActive').checked = true;
@@ -2453,6 +4050,103 @@ const getAdminHtml = () => `<!DOCTYPE html>
             document.getElementById('cookieSubmitBtn').textContent = '保存并验证';
             document.getElementById('cookieHelpContent').classList.remove('show');
             document.getElementById('cookieModal').classList.add('show');
+        };
+
+        let qrLoginTimer = null;
+        let qrLoginSessionId = null;
+        let qrLoginPolling = false;
+        let qrLoginDeadline = 0;
+
+        const stopQrLoginPolling = () => {
+            if (qrLoginTimer) { clearInterval(qrLoginTimer); qrLoginTimer = null; }
+        };
+
+        const setQrLoginStatus = (text, color) => {
+            const el = document.getElementById('qrLoginStatus');
+            if (!el) return;
+            el.textContent = text;
+            el.style.color = color || 'var(--text-secondary)';
+        };
+
+        const closeQrLogin = () => {
+            stopQrLoginPolling();
+            const sid = qrLoginSessionId;
+            qrLoginSessionId = null;
+            if (sid) api('/admin/cookies/qr/netease/cancel', { method: 'POST', body: JSON.stringify({ sessionId: sid }) }).catch(() => {});
+            closeModal('qrLoginModal');
+        };
+
+        const openQrLogin = async () => {
+            if (!QR_LOGIN_ENABLED) return;
+            document.getElementById('qrLoginModal').classList.add('show');
+            document.getElementById('qrLoginImage').style.display = 'none';
+            document.getElementById('qrLoginPlaceholder').style.display = 'flex';
+            document.getElementById('qrLoginRefreshBtn').disabled = true;
+            setQrLoginStatus('正在生成二维码…');
+            const res = await api('/admin/cookies/qr/netease/create', { method: 'POST' });
+            document.getElementById('qrLoginRefreshBtn').disabled = false;
+            if (!res?.success) {
+                setQrLoginStatus(res?.error || '生成二维码失败，请重试', 'var(--danger)');
+                return;
+            }
+            qrLoginSessionId = res.data.sessionId;
+            qrLoginDeadline = Date.now() + (res.data.expiresIn || 180) * 1000;
+            document.getElementById('qrLoginImage').src = res.data.qrDataUrl;
+            document.getElementById('qrLoginImage').style.display = 'block';
+            document.getElementById('qrLoginPlaceholder').style.display = 'none';
+            setQrLoginStatus('等待扫码…');
+            document.getElementById('qrLoginDebug').textContent = '';
+            stopQrLoginPolling();
+            qrLoginTimer = setInterval(pollQrLogin, 2000);
+        };
+
+        const refreshQrLogin = async () => {
+            const sid = qrLoginSessionId;
+            stopQrLoginPolling();
+            qrLoginSessionId = null;
+            if (sid) await api('/admin/cookies/qr/netease/cancel', { method: 'POST', body: JSON.stringify({ sessionId: sid }) }).catch(() => {});
+            await openQrLogin();
+        };
+
+        const remainingText = () => {
+            const left = Math.max(0, Math.ceil((qrLoginDeadline - Date.now()) / 1000));
+            return Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+        };
+
+        const pollQrLogin = async () => {
+            if (!qrLoginSessionId || qrLoginPolling) return;
+            qrLoginPolling = true;
+            try {
+                const res = await api('/admin/cookies/qr/netease/check', { method: 'POST', body: JSON.stringify({ sessionId: qrLoginSessionId }) });
+                if (!res?.success) { setQrLoginStatus(res?.error || '查询失败，稍后自动重试', 'var(--danger)'); return; }
+                const status = res.data.status;
+                const code = res.data.code;
+                const debugEl = document.getElementById('qrLoginDebug');
+                if (debugEl) debugEl.textContent = code ? ('上游状态码 ' + code) : '';
+                if (status === 'waiting') {
+                    setQrLoginStatus('等待扫码…（剩余 ' + remainingText() + '）');
+                } else if (status === 'scanned') {
+                    setQrLoginStatus('已扫码，请在手机上确认登录', 'var(--primary)');
+                } else if (status === 'expired') {
+                    stopQrLoginPolling(); qrLoginSessionId = null;
+                    setQrLoginStatus('二维码已过期，请点击「刷新二维码」', 'var(--danger)');
+                } else if (status === 'failed') {
+                    stopQrLoginPolling(); qrLoginSessionId = null;
+                    setQrLoginStatus(res.data.error || '登录失败，请重试', 'var(--danger)');
+                } else if (status === 'confirmed') {
+                    stopQrLoginPolling(); qrLoginSessionId = null;
+                    const info = res.data.userInfo || {};
+                    let msg = '已添加：' + (info.nickname || '网易云账号');
+                    if (info.canPlayVip !== undefined) msg += info.canPlayVip ? ' · 可播放 VIP' : ' · 不可播放 VIP';
+                    setQrLoginStatus('登录成功，Cookie 已保存', 'var(--success)');
+                    showToast(msg, 'success');
+                    loadCookies();
+                    loadDashboard();
+                    setTimeout(() => closeModal('qrLoginModal'), 800);
+                }
+            } finally {
+                qrLoginPolling = false;
+            }
         };
 
         const editCookie = async (id) => {
@@ -2468,6 +4162,21 @@ const getAdminHtml = () => `<!DOCTYPE html>
             document.getElementById('cookieSubmitBtn').textContent = '保存';
             document.getElementById('cookieHelpContent').classList.remove('show');
             document.getElementById('cookieModal').classList.add('show');
+        };
+
+        const toggleCookieActive = async (id, isActive) => {
+            const res = await api('/admin/cookies/' + id, {
+                method: 'PUT',
+                body: JSON.stringify({ isActive }),
+            });
+            if (res?.success) {
+                showToast(isActive ? 'Cookie 已启用' : 'Cookie 已禁用');
+                loadCookies();
+                loadDashboard();
+            } else {
+                showToast(res?.error || '操作失败', 'error');
+                loadCookies();
+            }
         };
 
         const verifyCookie = async (id) => {
@@ -2622,6 +4331,158 @@ const getAdminHtml = () => `<!DOCTYPE html>
             if (res?.success) showToast('管理后台路径已保存，重启服务后生效');
             else showToast(res?.error || '保存失败', 'error');
         });
+
+        document.getElementById('cacheForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const enabled = document.getElementById('cacheEnabled').checked;
+            const maxEntries = parseInt(document.getElementById('cacheMaxEntries').value, 10);
+            if (!Number.isInteger(maxEntries) || maxEntries < 50 || maxEntries > 100000) {
+                showToast('最大缓存条目需为 50~100000 之间的整数', 'error');
+                return;
+            }
+            const ttlByType = {};
+            let invalidType = '';
+            document.querySelectorAll('[data-cache-ttl]').forEach((input) => {
+                const type = input.dataset.cacheTtl;
+                const minutes = parseInt(input.value, 10);
+                if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10080) invalidType = type;
+                else ttlByType[type] = minutes;
+            });
+            if (invalidType) {
+                showToast('TTL 需为 1~10080 分钟之间的整数', 'error');
+                return;
+            }
+            const res = await api('/admin/cache', {
+                method: 'PUT',
+                body: JSON.stringify({ enabled, maxEntries, ttlByType }),
+            });
+            if (res?.success) {
+                renderCacheStats(res.data);
+                loadCacheConfig();
+                showToast('缓存配置已保存');
+            } else {
+                showToast(res?.error || '保存失败', 'error');
+            }
+        });
+
+        document.getElementById('geoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const key = document.getElementById('geoApiKey').value.trim();
+            const body = { enabled: document.getElementById('geoEnabled').checked };
+            if (key) body.key = key;
+            const res = await api('/admin/geo', { method: 'PUT', body: JSON.stringify(body) });
+            if (res?.success) {
+                showToast('IP 归属地配置已保存');
+                loadGeoConfig();
+            } else {
+                showToast(res?.error || '保存失败', 'error');
+            }
+        });
+
+        document.getElementById('loginBgForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const enabled = document.getElementById('loginBgEnabled').checked;
+            const apiUrl = document.getElementById('loginBgApiUrl').value.trim();
+            const ttlHours = parseInt(document.getElementById('loginBgTtlHours').value, 10);
+            if (!apiUrl) { showToast('请填写图片接口地址', 'error'); return; }
+            if (!Number.isInteger(ttlHours) || ttlHours < 1 || ttlHours > 168) {
+                showToast('缓存有效期需为 1~168 小时', 'error');
+                return;
+            }
+            const submitBtn = e.currentTarget.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+            try {
+                const res = await api('/admin/login-bg/settings', {
+                    method: 'PUT',
+                    body: JSON.stringify({ enabled, apiUrl, ttlHours }),
+                });
+                if (!res?.success) {
+                    showToast(res?.error || '保存失败', 'error');
+                    return;
+                }
+                renderLoginBgPreview(res.data);
+                showToast('登录页背景设置已保存');
+                // 首次启用或刚换了接口：立刻抓一张，省得第一次打开登录页空着
+                if (enabled && !res.data?.cache?.fetchedAt) await doRefreshLoginBg(true);
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
+
+        const fillMyIp = async (silent) => {
+            const quiet = silent === true;
+            const res = await api('/admin/geo/client-ip');
+            if (res?.success && res.data?.ip && res.data.ip !== 'unknown') {
+                const input = document.getElementById('geoTestIp');
+                if (input) input.value = res.data.ip;
+                if (!quiet) showToast('已填入当前 IP：' + res.data.ip);
+                return res.data.ip;
+            }
+            if (!quiet) showToast('获取当前 IP 失败，请手动填写', 'error');
+            return '';
+        };
+
+        const renderGeoResult = (d) => {
+            const box = document.getElementById('geoTestResult');
+            if (!box) return;
+            const input = document.getElementById('geoTestIp');
+            const fields = [
+                ['IP', d.ip || (input ? input.value.trim() : '')],
+                ['国家 / 地区', [d.country, d.countryCode ? '(' + d.countryCode + ')' : ''].filter(Boolean).join(' ')],
+                ['省 / 市 / 区', [d.region, d.city, d.county].filter(Boolean).join(' · ')],
+                ['运营商', d.isp],
+                ['大洲', d.continents],
+                ['城市编码', d.cityCode],
+                ['经纬度', [d.lat, d.lng].filter(Boolean).join(', ')],
+                ['英文名', d.enName ? d.enName + (d.enNameShort ? ' (' + d.enNameShort + ')' : '') : ''],
+                ['备注', d.remark],
+            ].filter(([, value]) => value);
+            box.innerHTML = '<div class="geo-result-grid">'
+                + fields.map(([label, value]) => '<div class="geo-result-item"><span>' + escapeHtml(label) + '</span><b>' + escapeHtml(value) + '</b></div>').join('')
+                + '</div><details><summary>原始字段</summary><pre>' + escapeHtml(JSON.stringify(d, null, 2)) + '</pre></details>';
+            box.style.display = '';
+        };
+
+        const testGeoApi = async () => {
+            const input = document.getElementById('geoTestIp');
+            const ip = input ? input.value.trim() : '';
+            const key = document.getElementById('geoApiKey').value.trim();
+            const status = document.getElementById('geoTestStatus');
+            const box = document.getElementById('geoTestResult');
+            if (status) status.textContent = '正在查询 ' + (ip || '当前 IP') + ' …';
+            if (box) box.style.display = 'none';
+            const body = {};
+            if (ip) body.ip = ip;
+            if (key) body.key = key;
+            const res = await api('/admin/geo/test', {
+                method: 'POST',
+                body: JSON.stringify(body),
+            });
+            if (res?.success) {
+                const d = res.data || {};
+                if (d.ip && input) input.value = d.ip;
+                renderGeoResult(d);
+                if (status) {
+                    const label = [d.region, d.city, d.county].filter(Boolean).join(' · ') || d.country || d.countryCode || '未知';
+                    status.textContent = '查询成功：' + (d.ip || ip) + ' → ' + label;
+                }
+                showToast('查询成功');
+            } else {
+                if (status) status.textContent = '查询失败：' + (res?.error || '未知错误');
+                showToast(res?.error || '查询失败', 'error');
+            }
+        };
+
+        const clearGeoCacheConfirm = async () => {
+            if (!confirm('确定清空本地 IP 归属地缓存？')) return;
+            const res = await api('/admin/geo/cache/clear', { method: 'POST' });
+            if (res?.success) {
+                showToast('IP 缓存已清空');
+                loadGeoConfig();
+            } else {
+                showToast(res?.error || '清空失败', 'error');
+            }
+        };
 
         document.getElementById('monitorForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -2781,17 +4642,105 @@ const getAdminHtml = () => `<!DOCTYPE html>
             }
         });
 
+        // ---------- 可折叠导航 ----------
+        const navToggle = document.getElementById('navToggle');
+        const navToggleMobile = document.getElementById('navToggleMobile');
+        const navBackdrop = document.getElementById('navBackdrop');
+        const mobileNavQuery = window.matchMedia('(max-width: 768px)');
+        const isMobileNav = () => mobileNavQuery.matches;
+
+        const syncNavUi = () => {
+            const mobile = isMobileNav();
+            if (mobile) {
+                document.body.classList.remove('nav-collapsed');
+                const open = document.body.classList.contains('nav-open');
+                const label = open ? '关闭导航' : '打开导航';
+                navToggleMobile?.setAttribute('aria-expanded', open ? 'true' : 'false');
+                navToggleMobile?.setAttribute('aria-label', label);
+                if (navToggleMobile) navToggleMobile.title = label;
+            } else {
+                document.body.classList.remove('nav-open');
+                const collapsed = document.body.classList.contains('nav-collapsed');
+                const label = collapsed ? '展开导航' : '收起导航';
+                navToggle?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                navToggle?.setAttribute('aria-label', label);
+                if (navToggle) navToggle.title = label;
+            }
+        };
+
+        const closeMobileNav = () => {
+            document.body.classList.remove('nav-open');
+            syncNavUi();
+        };
+
+        if (!isMobileNav() && localStorage.getItem('adminNavCollapsed') === '1') {
+            document.body.classList.add('nav-collapsed');
+        }
+
         document.querySelectorAll('.sidebar-menu li').forEach(li => {
-            li.addEventListener('click', () => switchSection(li.dataset.section));
+            const label = li.querySelector('.menu-text')?.textContent?.trim() || '';
+            if (label) li.title = label;
+            li.setAttribute('aria-label', label || li.dataset.section || '');
+            li.addEventListener('click', () => {
+                switchSection(li.dataset.section);
+                closeMobileNav();
+            });
         });
 
+        navToggle?.addEventListener('click', () => {
+            if (isMobileNav()) return;
+            const collapsed = document.body.classList.toggle('nav-collapsed');
+            localStorage.setItem('adminNavCollapsed', collapsed ? '1' : '0');
+            syncNavUi();
+        });
+        navToggleMobile?.addEventListener('click', () => {
+            if (!isMobileNav()) return;
+            document.body.classList.toggle('nav-open');
+            syncNavUi();
+        });
+        navBackdrop.addEventListener('click', closeMobileNav);
+        document.getElementById('navClose')?.addEventListener('click', closeMobileNav);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeMobileNav();
+        });
+        mobileNavQuery.addEventListener('change', () => {
+            if (isMobileNav()) {
+                document.body.classList.remove('nav-collapsed');
+            } else {
+                document.body.classList.remove('nav-open');
+                if (localStorage.getItem('adminNavCollapsed') === '1') {
+                    document.body.classList.add('nav-collapsed');
+                }
+            }
+            syncNavUi();
+        });
+        syncNavUi();
+
         if (authToken && authUsername) {
-            api('/admin/check').then(res => { if (res?.success) showAdmin(); else showLogin(); });
+            const authTimer = setTimeout(() => {
+                if (document.body.classList.contains('auth-pending')) showLogin();
+            }, 5000);
+            api('/admin/check')
+                .then(res => {
+                    clearTimeout(authTimer);
+                    if (res?.success) showAdmin();
+                    else showLogin();
+                })
+                .catch(() => {
+                    clearTimeout(authTimer);
+                    showLogin();
+                });
         } else showLogin();
     </script>
 </body>
 </html>`
+}
 
 export const adminPageHandler = (c) => {
-    return c.html(getAdminHtml())
+    // 后台路径本身是隐藏的：不在 robots.txt 里声明，改用响应头告诉爬虫不要收录
+    c.header('X-Robots-Tag', 'noindex, nofollow')
+    // 页面结构会随版本频繁变化，禁止浏览器缓存旧 HTML，避免改了样式仍看到旧卡片
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate')
+    c.header('Pragma', 'no-cache')
+    return c.html(getAdminHtml({ loginBg: store.getLoginBgConfig() }))
 }

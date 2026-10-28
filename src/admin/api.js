@@ -2,8 +2,19 @@ import store from '../admin/store.js'
 import { authMiddleware, adminMiddleware } from '../middleware/auth.js'
 import { validateCookie } from './cookie-validator.js'
 import cookieMonitor from './cookie-monitor.js'
-import { banIP, unbanIP, resetIPRecord, getAbuseStats, getEffectiveAbuseConfig } from '../middleware/abuse-detector.js'
+import neteaseQr from './netease-qr.js'
+import { banIP, unbanIP, resetIPRecord, getAbuseStats, getEffectiveAbuseConfig, getClientIP } from '../middleware/abuse-detector.js'
 import apiLogger from '../service/api-logger.js'
+import apiCache from '../service/api-cache.js'
+import {
+    CACHE_TYPES,
+    CACHE_TYPE_LABELS,
+    resolveCacheConfig,
+    secondsToMinutes,
+    minutesToSeconds,
+} from '../service/cache-config.js'
+import { queryShowAPI, getGeoCacheStats, clearGeoCache, isPublicIP } from '../service/geo.js'
+import { getLoginBgStatus, refreshLoginBg, clearLoginBgCache } from './login-bg.js'
 import fs from 'fs'
 import path from 'path'
 
@@ -109,7 +120,41 @@ export const adminRoutes = (app) => {
         return c.json({ success: true, data: formatCookieForDisplay(cookie) })
     })
 
-    app.post('/admin/cookies', authMiddleware, async (c) => {
+    // 网易云扫码登录：三个接口都只返回操作结果，unikey 始终留在服务端内存。
+    // 统一 no-store，避免二维码图片（等价于登录令牌）被任何中间层缓存。
+    app.post('/admin/cookies/qr/netease/create', authMiddleware, adminMiddleware, async (c) => {
+        c.header('Cache-Control', 'no-store')
+        c.header('Pragma', 'no-cache')
+        try {
+            const data = await neteaseQr.create(c.get('username'))
+            return c.json({ success: true, data })
+        } catch (error) {
+            return c.json({ success: false, error: error.message || '生成二维码失败' }, error.status || 502)
+        }
+    })
+
+    app.post('/admin/cookies/qr/netease/check', authMiddleware, adminMiddleware, async (c) => {
+        c.header('Cache-Control', 'no-store')
+        c.header('Pragma', 'no-cache')
+        const body = await c.req.json().catch(() => ({}))
+        if (!body?.sessionId) {
+            return c.json({ success: false, error: '缺少 sessionId' }, 400)
+        }
+        try {
+            const data = await neteaseQr.check(body.sessionId, c.get('username'))
+            return c.json({ success: true, data })
+        } catch (error) {
+            return c.json({ success: false, error: error.message || '查询扫码状态失败' }, error.status || 502)
+        }
+    })
+
+    app.post('/admin/cookies/qr/netease/cancel', authMiddleware, adminMiddleware, async (c) => {
+        c.header('Cache-Control', 'no-store')
+        const body = await c.req.json().catch(() => ({}))
+        return c.json({ success: true, data: neteaseQr.cancel(body?.sessionId, c.get('username')) })
+    })
+
+    app.post('/admin/cookies', authMiddleware, adminMiddleware, async (c) => {
         const body = await c.req.json()
         const { platform, cookie, note, skipValidation } = body
         const username = c.get('username')
@@ -123,7 +168,7 @@ export const adminRoutes = (app) => {
         }
     })
 
-    app.put('/admin/cookies/:id', authMiddleware, async (c) => {
+    app.put('/admin/cookies/:id', authMiddleware, adminMiddleware, async (c) => {
         const id = c.req.param('id')
         const body = await c.req.json()
         const username = c.get('username')
@@ -138,7 +183,7 @@ export const adminRoutes = (app) => {
         }
     })
 
-    app.delete('/admin/cookies/:id', authMiddleware, async (c) => {
+    app.delete('/admin/cookies/:id', authMiddleware, adminMiddleware, async (c) => {
         const id = c.req.param('id')
         const username = c.get('username')
         
@@ -151,7 +196,7 @@ export const adminRoutes = (app) => {
         }
     })
 
-    app.post('/admin/cookies/:id/verify', authMiddleware, async (c) => {
+    app.post('/admin/cookies/:id/verify', authMiddleware, adminMiddleware, async (c) => {
         const id = c.req.param('id')
         const username = c.get('username')
         
@@ -164,7 +209,7 @@ export const adminRoutes = (app) => {
         }
     })
 
-    app.post('/admin/cookies/validate', authMiddleware, async (c) => {
+    app.post('/admin/cookies/validate', authMiddleware, adminMiddleware, async (c) => {
         const body = await c.req.json()
         const { platform, cookie } = body
         
@@ -253,6 +298,11 @@ export const adminRoutes = (app) => {
         const offset = parseInt(c.req.query('offset') || '0')
         const logs = store.getLogs(limit, offset)
         return c.json({ success: true, data: logs })
+    })
+
+    app.delete('/admin/logs', authMiddleware, adminMiddleware, async (c) => {
+        const result = await store.clearLogs()
+        return c.json(result)
     })
 
     app.put('/admin/password', authMiddleware, async (c) => {
@@ -395,6 +445,186 @@ export const adminRoutes = (app) => {
         const offset = parseInt(c.req.query('offset') || '0')
         const logs = store.getMonitorLogs(limit, offset)
         return c.json({ success: true, data: logs })
+    })
+
+    // ============ IP 归属地接口（ShowAPI） ============
+
+    const maskGeoKey = (key) => (key ? '****' + String(key).slice(-4) : '')
+
+    // 后台「获取我的 IP」：优先用反代传入的公网地址；本地/内网访问时
+    // 退回 uapis 的 myip 接口（服务端出口 IP，本地开发时就是本机公网 IP）。
+    const PUBLIC_IP_URL = 'https://uapis.cn/api/v1/network/myip'
+    const PUBLIC_IP_TTL = 10 * 60 * 1000
+    let publicIpCache = { ip: '', at: 0 }
+    const resolveClientIP = async (c) => {
+        const forwarded = getClientIP(c)
+        if (isPublicIP(forwarded)) return { ip: forwarded, source: 'forwarded' }
+        const realIp = c.req.header('X-Real-IP')
+        if (isPublicIP(realIp)) return { ip: realIp, source: 'real-ip' }
+        if (publicIpCache.ip && Date.now() - publicIpCache.at < PUBLIC_IP_TTL) {
+            return { ip: publicIpCache.ip, source: 'cache' }
+        }
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 5000)
+        try {
+            const res = await fetch(PUBLIC_IP_URL, { signal: controller.signal })
+            const body = await res.json()
+            if (body?.ip && isPublicIP(body.ip)) {
+                publicIpCache = { ip: body.ip, at: Date.now() }
+                return { ip: body.ip, source: 'external' }
+            }
+        } catch (_) {
+            // 外部接口不可用时，退回请求头里的值，让前端至少能显示出来
+        } finally {
+            clearTimeout(timer)
+        }
+        return { ip: forwarded, source: forwarded === 'unknown' ? 'unknown' : 'private' }
+    }
+
+    app.get('/admin/geo', authMiddleware, adminMiddleware, async (c) => {
+        const config = store.getGeoConfig()
+        const cache = getGeoCacheStats()
+        return c.json({
+            success: true,
+            data: {
+                enabled: config.enabled,
+                hasKey: !!config.key,
+                keyPreview: maskGeoKey(config.key),
+                cacheSize: cache.size,
+                cacheTtlDays: cache.ttlDays,
+            },
+        })
+    })
+
+    app.put('/admin/geo', authMiddleware, adminMiddleware, async (c) => {
+        const body = await c.req.json().catch(() => ({}))
+        const result = await store.setGeoConfig(body, c.get('username'))
+        if (!result.success) return c.json(result, 400)
+        const config = store.getGeoConfig()
+        return c.json({
+            ...result,
+            data: {
+                enabled: config.enabled,
+                hasKey: !!config.key,
+                keyPreview: maskGeoKey(config.key),
+                cacheSize: getGeoCacheStats().size,
+            },
+        })
+    })
+
+    app.get('/admin/geo/client-ip', authMiddleware, adminMiddleware, async (c) => {
+        return c.json({ success: true, data: await resolveClientIP(c) })
+    })
+
+    app.post('/admin/geo/test', authMiddleware, adminMiddleware, async (c) => {
+        const body = await c.req.json().catch(() => ({}))
+        const config = store.getGeoConfig()
+        const key = typeof body.key === 'string' && body.key.trim() ? body.key.trim() : config.key
+        // 不填 IP 时直接用当前访问后台的公网 IP，省去手动复制
+        let ip = typeof body.ip === 'string' ? body.ip.trim() : ''
+        if (!ip) {
+            const fallback = await resolveClientIP(c)
+            ip = fallback.ip
+        }
+        const result = await queryShowAPI(ip, key)
+        return c.json(result, result.success ? 200 : 400)
+    })
+
+    app.post('/admin/geo/cache/clear', authMiddleware, adminMiddleware, async (c) => {
+        clearGeoCache()
+        await store.addLog('geo_cache_clear', '清空 IP 归属地缓存', c.get('username'))
+        return c.json({ success: true, data: getGeoCacheStats() })
+    })
+
+    // ============ /api 响应缓存 ============
+
+    const getCacheData = () => {
+        const config = resolveCacheConfig(store.getCacheConfig())
+        const stats = apiCache.stats()
+        return {
+            enabled: config.enabled,
+            maxEntries: config.maxEntries,
+            ttlByType: Object.fromEntries(CACHE_TYPES.map((type) => [type, secondsToMinutes(config.ttlByType[type])])),
+            types: CACHE_TYPES.map((type) => ({ key: type, label: CACHE_TYPE_LABELS[type] })),
+            envLocked: globalThis?.process?.env?.CACHE_ENABLED === '0',
+            envGlobalTtlSeconds: Number(globalThis?.process?.env?.CACHE_TTL_SECONDS || 0) || null,
+            stats,
+        }
+    }
+
+    app.get('/admin/cache', authMiddleware, adminMiddleware, async (c) => {
+        c.header('Cache-Control', 'no-store')
+        return c.json({ success: true, data: getCacheData() })
+    })
+
+    app.put('/admin/cache', authMiddleware, adminMiddleware, async (c) => {
+        const body = await c.req.json().catch(() => ({}))
+        const before = resolveCacheConfig(store.getCacheConfig())
+        const ttlByType = {}
+        if (body.ttlByType && typeof body.ttlByType === 'object') {
+            for (const [type, minutes] of Object.entries(body.ttlByType)) {
+                ttlByType[type] = minutesToSeconds(minutes)
+            }
+        }
+        const result = await store.setCacheConfig(
+            { enabled: body.enabled, maxEntries: body.maxEntries, ttlByType },
+            c.get('username')
+        )
+        if (!result.success) return c.json(result, 400)
+
+        const after = resolveCacheConfig(store.getCacheConfig())
+        // TTL 改变后旧条目的过期时间不会跟着变，直接清空让新配置立即生效
+        if (JSON.stringify(before.ttlByType) !== JSON.stringify(after.ttlByType)) {
+            apiCache.clear()
+        }
+        return c.json({ success: true, data: getCacheData() })
+    })
+
+    app.post('/admin/cache/clear', authMiddleware, adminMiddleware, async (c) => {
+        apiCache.clear()
+        await store.addLog('cache_clear', '清空 /api 响应缓存', c.get('username'))
+        return c.json({ success: true, data: getCacheData() })
+    })
+
+    // ============ 登录页背景图 ============
+
+    app.get('/admin/login-bg/settings', authMiddleware, adminMiddleware, async (c) => {
+        c.header('Cache-Control', 'no-store')
+        return c.json({ success: true, data: getLoginBgStatus() })
+    })
+
+    app.put('/admin/login-bg/settings', authMiddleware, adminMiddleware, async (c) => {
+        const body = await c.req.json().catch(() => ({}))
+        const before = store.getLoginBgConfig()
+        const result = await store.setLoginBgConfig(
+            { enabled: body.enabled, apiUrl: body.apiUrl, ttlHours: body.ttlHours },
+            c.get('username')
+        )
+        if (!result.success) return c.json(result, 400)
+        const after = store.getLoginBgConfig()
+        // 接口地址换了，旧图不再代表新分类，直接清掉，下次访问按新地址抓取
+        if (before.apiUrl !== after.apiUrl) clearLoginBgCache()
+        return c.json({ success: true, data: getLoginBgStatus() })
+    })
+
+    app.post('/admin/login-bg/refresh', authMiddleware, adminMiddleware, async (c) => {
+        try {
+            const result = await refreshLoginBg()
+            await store.addLog('login_bg_refresh', '更换登录页背景图', c.get('username'))
+            return c.json({
+                success: true,
+                data: getLoginBgStatus(),
+                ...(result.error ? { warning: result.error } : {}),
+            })
+        } catch (error) {
+            return c.json({ success: false, error: error.message || '更换背景图失败' }, 502)
+        }
+    })
+
+    app.post('/admin/login-bg/cache/clear', authMiddleware, adminMiddleware, async (c) => {
+        clearLoginBgCache()
+        await store.addLog('login_bg_cache_clear', '清除登录页背景图缓存', c.get('username'))
+        return c.json({ success: true, data: getLoginBgStatus() })
     })
 
     app.get('/admin/2fa/status', authMiddleware, async (c) => {
@@ -588,6 +818,20 @@ export const adminRoutes = (app) => {
 
     app.get('/admin/api-logs/stats', authMiddleware, async (c) => {
         return c.json({ success: true, data: apiLogger.getStats() })
+    })
+
+    // 来源统计：按 Referer 站点聚合请求数与独立 IP
+    app.get('/admin/api-logs/referers', authMiddleware, async (c) => {
+        const hours = Math.min(24 * 30, Math.max(1, parseInt(c.req.query('hours')) || 24))
+        const limit = Math.min(100, Math.max(5, parseInt(c.req.query('limit')) || 30))
+        const host = c.req.query('host') || ''
+        return c.json({ success: true, data: apiLogger.getRefererStats({ hours, limit, host }) })
+    })
+
+    // 看板：按小时分桶的请求趋势
+    app.get('/admin/api-logs/timeseries', authMiddleware, async (c) => {
+        const hours = Math.min(72, Math.max(6, parseInt(c.req.query('hours')) || 24))
+        return c.json({ success: true, data: apiLogger.getTimeseries({ hours }) })
     })
 
     app.get('/admin/api-logs', authMiddleware, async (c) => {

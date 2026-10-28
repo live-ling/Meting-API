@@ -22,6 +22,9 @@ const ALIAS_MAP = {
 
   // 导航/仪表盘
   dashboard:   'BarChart3',
+  menu:        'Menu',
+  panelClose:  'PanelLeftClose',
+  panelOpen:   'PanelLeftOpen',
   link:        'Link',
   docs:        'BookOpen',
   api:         'Zap',
@@ -53,6 +56,9 @@ const ALIAS_MAP = {
   trash:       'Trash2',
   bell:        'Bell',
   cookie:      'Cookie',
+  qr:          'QrCode',
+  phone:       'Smartphone',
+  image:       'Image',
   test:        'FlaskConical',
   radio:       'Radio',
   download:    'Download',

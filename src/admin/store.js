@@ -1,5 +1,19 @@
 import { get_runtime } from '../util.js'
 import { validateCookie as validateCookieOnline } from './cookie-validator.js'
+import {
+    DEFAULT_LOGIN_BG_API,
+    DEFAULT_LOGIN_BG_TTL_HOURS,
+    LOGIN_BG_TTL_MIN_HOURS,
+    LOGIN_BG_TTL_MAX_HOURS,
+    LOGIN_BG_URL_MAX_LENGTH,
+} from './login-bg-config.js'
+import {
+    CACHE_TYPES,
+    CACHE_TTL_MIN_SECONDS,
+    CACHE_TTL_MAX_SECONDS,
+    CACHE_MAX_ENTRIES_MIN,
+    CACHE_MAX_ENTRIES_MAX,
+} from '../service/cache-config.js'
 
 const runtime = get_runtime()
 
@@ -298,6 +312,13 @@ class DataStore {
             .slice()
             .reverse()
             .slice(offset, offset + limit)
+    }
+
+    async clearLogs() {
+        const count = this.logs.length
+        this.logs = []
+        await this.saveToFile()
+        return { success: true, data: { count } }
     }
 
     validateCookieFormat(platform, cookieData) {
@@ -970,6 +991,140 @@ class DataStore {
         } catch {
             return false
         }
+    }
+
+    getGeoConfig() {
+        return {
+            enabled: this.config.geoApiEnabled !== false,
+            key: this.config.geoApiKey || '',
+            cacheTtlDays: Number(this.config.geoApiCacheTtlDays) || 30
+        }
+    }
+
+    async setGeoConfig(config = {}, operator = 'system') {
+        if (config.enabled !== undefined) {
+            this.config.geoApiEnabled = !!config.enabled
+        }
+        if (config.clearKey) {
+            delete this.config.geoApiKey
+        } else if (typeof config.key === 'string' && config.key.trim()) {
+            const key = config.key.trim()
+            if (key.length < 8 || key.length > 128 || /\s/.test(key)) {
+                return { success: false, error: 'appKey 格式不正确' }
+            }
+            this.config.geoApiKey = key
+        }
+        await this.addLog('geo_api_update', `更新 IP 归属地接口配置: ${this.config.geoApiKey ? '已配置密钥' : '未配置密钥'}`, operator)
+        await this.saveToFile()
+        return {
+            success: true,
+            data: {
+                enabled: this.getGeoConfig().enabled,
+                hasKey: !!this.config.geoApiKey
+            }
+        }
+    }
+
+    getLoginBgConfig() {
+        const ttl = Number(this.config.loginBgTtlHours)
+        return {
+            enabled: this.config.loginBgEnabled !== false,
+            apiUrl: this.config.loginBgApiUrl || DEFAULT_LOGIN_BG_API,
+            ttlHours: Number.isFinite(ttl) && ttl >= LOGIN_BG_TTL_MIN_HOURS && ttl <= LOGIN_BG_TTL_MAX_HOURS
+                ? ttl
+                : DEFAULT_LOGIN_BG_TTL_HOURS
+        }
+    }
+
+    async setLoginBgConfig(config = {}, operator = 'system') {
+        if (config.enabled !== undefined) {
+            this.config.loginBgEnabled = !!config.enabled
+        }
+        if (config.apiUrl !== undefined) {
+            const url = String(config.apiUrl || '').trim()
+            if (!url) {
+                return { success: false, error: '图片接口地址不能为空' }
+            }
+            if (url.length > LOGIN_BG_URL_MAX_LENGTH) {
+                return { success: false, error: `图片接口地址不能超过 ${LOGIN_BG_URL_MAX_LENGTH} 个字符` }
+            }
+            if (!this.isValidWebhookUrl(url)) {
+                return { success: false, error: '图片接口地址无效：需要公网 http/https 地址' }
+            }
+            this.config.loginBgApiUrl = url
+        }
+        if (config.ttlHours !== undefined) {
+            const ttl = Number(config.ttlHours)
+            if (!Number.isInteger(ttl) || ttl < LOGIN_BG_TTL_MIN_HOURS || ttl > LOGIN_BG_TTL_MAX_HOURS) {
+                return {
+                    success: false,
+                    error: `缓存有效期需为 ${LOGIN_BG_TTL_MIN_HOURS}~${LOGIN_BG_TTL_MAX_HOURS} 之间的整数小时`,
+                }
+            }
+            this.config.loginBgTtlHours = ttl
+        }
+
+        await this.addLog(
+            'login_bg_update',
+            `更新登录页背景图: ${this.getLoginBgConfig().enabled ? '启用' : '关闭'}, TTL=${this.getLoginBgConfig().ttlHours}小时`,
+            operator
+        )
+        await this.saveToFile()
+        return { success: true, data: this.getLoginBgConfig() }
+    }
+
+    /** 原始缓存配置；null 表示从未保存过，由 api-cache 用环境变量/默认值解析。 */
+    getCacheConfig() {
+        return this.config.cacheConfig || null
+    }
+
+    async setCacheConfig(config = {}, operator = 'system') {
+        const next = { ...(this.config.cacheConfig || {}) }
+
+        if (config.enabled !== undefined) {
+            next.enabled = !!config.enabled
+        }
+
+        if (config.maxEntries !== undefined) {
+            const maxEntries = Number(config.maxEntries)
+            if (!Number.isInteger(maxEntries) || maxEntries < CACHE_MAX_ENTRIES_MIN || maxEntries > CACHE_MAX_ENTRIES_MAX) {
+                return {
+                    success: false,
+                    error: `最大缓存条目需为 ${CACHE_MAX_ENTRIES_MIN}~${CACHE_MAX_ENTRIES_MAX} 之间的整数`,
+                }
+            }
+            next.maxEntries = maxEntries
+        }
+
+        if (config.ttlByType !== undefined) {
+            if (!config.ttlByType || typeof config.ttlByType !== 'object' || Array.isArray(config.ttlByType)) {
+                return { success: false, error: 'TTL 配置格式不正确' }
+            }
+            const ttlByType = { ...(next.ttlByType || {}) }
+            for (const [type, value] of Object.entries(config.ttlByType)) {
+                if (!CACHE_TYPES.includes(type)) {
+                    return { success: false, error: `未知的缓存类型: ${type}` }
+                }
+                const seconds = Number(value)
+                if (!Number.isInteger(seconds) || seconds < CACHE_TTL_MIN_SECONDS || seconds > CACHE_TTL_MAX_SECONDS) {
+                    return {
+                        success: false,
+                        error: `${type} 的 TTL 需为 ${CACHE_TTL_MIN_SECONDS / 60}~${CACHE_TTL_MAX_SECONDS / 60} 分钟之间的整数`,
+                    }
+                }
+                ttlByType[type] = seconds
+            }
+            next.ttlByType = ttlByType
+        }
+
+        this.config.cacheConfig = next
+        await this.addLog(
+            'cache_config_update',
+            `更新响应缓存: ${next.enabled === false ? '关闭' : '启用'}, 最大条目=${next.maxEntries ?? '默认'}`,
+            operator
+        )
+        await this.saveToFile()
+        return { success: true, data: next }
     }
 
     getMonitorConfig() {
