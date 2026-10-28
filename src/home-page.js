@@ -1,28 +1,38 @@
-import { get_url } from './util.js'
+/**
+ * 首页（/）：只做组装 —— 基础地址 → 能力矩阵 → 提示词 → 区块 → 页面骨架。
+ * 具体内容都在 src/pages/home/ 下按职责拆分。
+ */
 
-const esc = value => String(value).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]))
+import { get_url } from './util.js'
+import { readCapabilities } from './pages/home/capabilities.js'
+import { buildPrompt } from './pages/home/prompt.js'
+import { homeClientScript } from './pages/home/client.js'
+import { renderLayout } from './pages/home/layout.js'
+import { heroSection, statsSection, quickStartSection, featureSection } from './pages/home/sections.js'
+import { capabilitySection, contractSection, promptSection } from './pages/home/sections.js'
+
+/** 站点根地址：去掉 get_url 带出来的尾部斜杠；缺少完整 Context 时退回 req.url 的 origin */
+const homeBase = (c) => {
+    try {
+        return get_url(c).replace(/\/+$/, '')
+    } catch {
+        try { return new URL(c.req.url).origin } catch { return '' }
+    }
+}
 
 export function homePage(c) {
-    const apiUrl = 'https://api-music.liveling.top'
-    const requestUrl = new URL(c.req.url)
-    const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(requestUrl.hostname)
-    const prompt = `你是音乐应用开发助手。请帮我把 Meting-API 集成到一个音乐 UI 中，并遵守以下真实契约：
+    const base = homeBase(c)
+    const capabilities = readCapabilities()
+    const prompt = buildPrompt({ base, capabilities })
+    const main = [
+        heroSection({ base }),
+        statsSection(),
+        featureSection(),
+        capabilitySection(capabilities),
+        quickStartSection({ base, capabilities }),
+        contractSection(),
+        promptSection({ prompt }),
+    ].join('\n')
 
-API 基础地址：${apiUrl}
-请求格式：GET ${apiUrl}?server={server}&type={type}&id={id}
-参数：server、type、id。Tencent 支持 url、pic、lrc、song、playlist；Netease 在此基础上增加 artist、search。先核对服务端实际支持的组合，不要假设两个平台支持完全相同的类型。
-
-song/playlist/artist/search 等数据类型返回 JSON；歌曲列表示例为：[ {"title":"…","author":"…","url":"…","pic":"…","lrc":"…"} ]。lrc 类型返回歌词文本。字段实际名称是 title、author、url、pic、lrc；字段值可能是字符串或数组，请按真实响应映射，不要给媒体地址臆造数组格式。曲目中的 lrc 可为歌词 URL，或以 @ 开头的内联歌词（去掉前缀后解析 LRC）；type=lrc 返回纯文本，不要调用 response.json()。type=url 和 type=pic 通常返回 HTTP 重定向，不能当作歌曲列表解析；url 结果如果以 @ 开头，表示特殊值，不要执行未知代码，也不能直接传给 audio，应显示暂不支持。
-
-请求示例：${apiUrl}?server=netease&type=song&id=473403185
-用 URLSearchParams 编码参数；读取列表前检查 response.ok 与 Array.isArray(data)。使用 textContent 展示接口文本，仅接受 HTTP(S) 媒体地址。播放使用原生 audio，preload=none，用户点击后设置 src；全页最多一个音频播放，歌词随 currentTime 高亮，暂停时停止唱片动画。
-
-请实现：把返回数据映射到歌曲卡片、播放地址、封面和歌词；在浏览器端按需加载，使用 JS 消费 API；不要在页面初始化时批量预加载。请求间隔至少 1500ms，做去重和有界缓存。收到 429 时读取 Retry-After，提示用户稍后手动操作，不自动重试；媒体播放失败本身不能证明是 429。不要要求或暴露 secret、token、cookie。
-
-请先核对 server/type 是否由服务端支持，再生成代码和错误状态；只使用本 API 的真实字段和响应，不编造接口。`
-    const safePrompt = esc(prompt)
-    return c.html(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Meting API · 音乐数据接口</title><style>
-:root{--paper:#edf8fd;--ink:#183243;--muted:#607987;--line:#c9e0ea;--accent:#276d98;--card:#ffffffb8}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 0,#c1e4f5,transparent 48%),var(--paper);color:var(--ink);font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;line-height:1.6}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.top{border-bottom:1px solid var(--line);background:#ffffff70}.bar,main{max-width:1180px;margin:auto}.bar{padding:18px 28px;display:flex;justify-content:space-between;align-items:center}.brand{font-weight:800;letter-spacing:.02em}.brand small{font-weight:400;color:var(--muted);margin-left:10px}main{padding:64px 28px}.hero{display:grid;grid-template-columns:1.3fr .7fr;gap:48px;align-items:end}.eyebrow{font:12px Consolas,monospace;letter-spacing:.2em;color:var(--accent)}h1{font-size:clamp(38px,7vw,78px);line-height:1.04;letter-spacing:-.07em;margin:14px 0 20px;max-width:800px}p{color:var(--muted);margin:0}.hero p{font-size:18px;max-width:640px}.note{border-top:1px solid #88aabd;padding-top:14px;font-size:13px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:42px}.card{background:var(--card);border:1px solid #fff;border-radius:22px;padding:24px;box-shadow:0 14px 40px #27485f0b;backdrop-filter:blur(14px)}.card h2{font-size:17px;margin:0 0 8px}.card p{font-size:14px}.api{margin-top:16px;font:13px Consolas,monospace;background:#e4f2f8;border-radius:10px;padding:12px;overflow:auto}.prompt{margin-top:42px}.prompt-head{display:flex;justify-content:space-between;gap:20px;align-items:end}.prompt h2{margin:0;font-size:25px}.prompt textarea{display:block;width:100%;min-height:390px;margin-top:16px;border:1px solid var(--line);border-radius:16px;background:#f7fcff;color:var(--ink);padding:18px;font:13px/1.7 Consolas,'Microsoft YaHei',monospace;resize:vertical}.button{border:1px solid var(--ink);border-radius:10px;padding:10px 16px;background:var(--ink);color:white;font-weight:700;cursor:pointer}.button:hover{background:var(--accent)}#copy-status{font-size:13px;color:var(--muted);min-height:24px;margin-top:8px}footer{text-align:center;padding:0 20px 42px;color:var(--muted);font-size:13px}@media(max-width:760px){main{padding:40px 16px}.bar{padding:16px}.brand small{display:none}.hero{grid-template-columns:1fr;gap:22px}.grid{grid-template-columns:1fr;margin-top:30px}.prompt-head{align-items:flex-start;flex-direction:column}h1{font-size:50px}}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:36px}.stats strong{display:block;font-size:32px;line-height:1.3;font-variant-numeric:tabular-nums}.stats span{font-size:13px;color:var(--muted)}.card,.hero>*{min-width:0}.prompt label{display:block;margin-top:18px;font-size:13px;color:var(--muted)}a:focus-visible,button:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.button{min-height:44px;flex-shrink:0}.bar{gap:18px}.api{overflow-wrap:anywhere}.prompt textarea{min-width:0}@media(max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.card{padding:20px}h1{font-size:clamp(34px,9vw,50px)}}
-</style></head><body><header class="top"><div class="bar"><div class="brand">Meting API <small>音乐数据接口</small></div><a href="/test">打开试听实验室 ↗</a></div></header><main><section class="hero"><div><div class="eyebrow">OPEN MUSIC DATA / API</div><h1>把音乐数据，<br>放进你的界面。</h1><p>面向开发者的轻量音乐接口。获取歌曲、歌单、歌词与试听地址，再用你自己的产品体验把它们串起来。</p></div><div class="note">API 基础地址会根据当前请求动态生成。下面的示例只展示链接，不会自动发起 API 请求。</div></section><section class="stats card" aria-label="API 统计"><div><strong id="stat-total">—</strong><span>累计请求</span></div><div><strong id="stat-day">—</strong><span>近 24 小时</span></div><div><strong id="stat-ips">—</strong><span>近 24 小时 IP</span></div><div><strong id="stat-success">—</strong><span>近 24 小时成功</span></div></section><section class="grid"><article class="card"><h2>统一入口</h2><p>通过 server、type、id 描述一次请求，响应直接返回可消费的数据。</p><div class="api">GET /api?server=...&amp;type=...&amp;id=...</div></article><article class="card"><h2>真实字段</h2><p>歌曲数据围绕 title、author、url、pic、lrc 组织；列表与歌词保持原始响应形态。</p><div class="api">/test · 试听与歌词演示</div></article><article class="card"><h2>开发约束</h2><p>按需加载、去重缓存、请求节流；遇到 429 遵守 Retry-After 并等待手动操作。</p><div class="api"><a href="/api?server=netease&amp;type=song&amp;id=473403185">查看接口示例 ↗</a></div></article></section><section class="card prompt"><div class="prompt-head"><div><div class="eyebrow">AI HANDOFF PROMPT</div><h2>给 AI 的集成提示词</h2><p>已填入当前请求地址，可直接复制给你的代码助手。</p></div><button class="button" id="copy-prompt" type="button">复制提示词</button></div><label for="ai-prompt">供 AI 使用的完整提示词</label><textarea id="ai-prompt" readonly>${safePrompt}</textarea><div id="copy-status" role="status" aria-live="polite"></div></section></main><footer><a href="/test">试听实验室</a> · <a href="/api">API 入口</a> · <a href="/api/stats">API 统计</a> · <a href="https://github.com/live-ling/Meting-API">GitHub ↗</a></footer><script>const button=document.getElementById('copy-prompt'),field=document.getElementById('ai-prompt'),status=document.getElementById('copy-status');button.addEventListener('click',async()=>{try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(field.value)}else{field.focus();field.select();if(!document.execCommand('copy'))throw new Error('copy')}status.textContent='已复制提示词，可粘贴给 AI。';status.style.color='#247653'}catch(e){field.focus();field.select();status.textContent='浏览器未授权自动复制，已选中文本，请按 Ctrl/Cmd+C 完成复制。';status.style.color='#8a5b19'}});fetch('/api/stats').then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(({data})=>{const s=data||{};document.getElementById('stat-total').textContent=s.total??0;document.getElementById('stat-day').textContent=s.last24h??0;document.getElementById('stat-ips').textContent=s.uniqueIPs24h??0;document.getElementById('stat-success').textContent=s.byStatus?.success??0}).catch(()=>{document.querySelectorAll('.stats strong').forEach(x=>x.textContent='不可用');document.querySelector('.stats').setAttribute('aria-label','API 统计加载失败，未自动重试')});</script></body></html>`)
+    return c.html(renderLayout({ main, script: homeClientScript(), base }))
 }
