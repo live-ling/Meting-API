@@ -13,16 +13,18 @@ const parseCookieString = (cookieString) => {
     return cookies
 }
 
-export const get_song_url = async (id, cookie = '') => {
+export const get_song_url = async (id, cookie = '', quality = 'standard') => {
 
     id = id.split(',')
     const cookieObj = parseCookieString(cookie)
     let uin = cookieObj.uin || ''
     let qqmusic_key = cookieObj.qqmusic_key || ''
-    const typeObj = {
-        s: 'M500',
-        e: '.mp3',
-    }
+    // QQ 音乐文件前缀：M500=128k、M800=320k、F000=FLAC
+    const typeObj = quality === 'lossless' || quality === 'hires' || quality === 'jymaster'
+        ? { s: 'F000', e: '.flac' }
+        : quality === 'higher' || quality === 'exhigh'
+            ? { s: 'M800', e: '.mp3' }
+            : { s: 'M500', e: '.mp3' }
 
     const file = id.map(e => `${typeObj.s}${e}${e}${typeObj.e}`)
     const guid = (Math.random() * 10000000).toFixed(0);
@@ -36,6 +38,7 @@ export const get_song_url = async (id, cookie = '') => {
             param: {
                 guid: guid,
                 songmid: id,
+                filename: file,
                 songtype: [0],
                 uin: uin,
                 loginflag: 1,
@@ -84,12 +87,18 @@ export const get_song_url = async (id, cookie = '') => {
         purl = result.req_0.data.midurlinfo[0].purl;
     }
 
-    const domain =
-        result.req_0.data.sip.find(i => !i.startsWith('http://ws')) ||
-        result.req_0.data.sip[0];
+    // 没有 purl 说明这首歌不可播放（无版权 / 需要 VIP Cookie）。
+    // 旧版会拼成 `https://aqqmusic.tc.qq.com/` 这样的 CDN 根路径并 302 过去，
+    // 客户端拿到的是一个 404 页面；这里返回空串，由 /api 回 404。
+    if (!purl) return ''
 
-    const res = `${domain}${purl}`.replace('http://', 'https://')
-    return res;
+    const sip = result.req_0?.data?.sip || []
+    const domain = sip.find(i => !i.startsWith('http://ws')) || sip[0]
+    if (!domain) return ''
+
+    return `${domain}${purl}`
+        .replace('http://', 'https://')
+        .replace('://ws.stream.qqmusic.qq.com', '://dl.stream.qqmusic.qq.com')
 
 }
 

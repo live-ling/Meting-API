@@ -32,12 +32,34 @@ const chooseUserAgent = (ua = false) => {
         : ua
 }
 
-const cnip = () => {
+export const cnip = () => {
     const ips = '58.14.0.0,58.16.0.0,58.24.0.0,58.30.0.0,58.32.0.0,58.66.0.0,58.68.128.0,58.82.0.0,58.87.64.0,58.99.128.0,58.100.0.0,58.116.0.0,58.128.0.0,58.144.0.0,58.154.0.0,58.192.0.0,58.240.0.0,59.32.0.0,59.64.0.0,59.80.0.0,59.107.0.0,59.108.0.0,59.151.0.0,59.155.0.0,59.172.0.0,59.191.0.0,59.191.240.0,59.192.0.0,60.0.0.0,60.55.0.0,60.63.0.0,60.160.0.0,60.194.0.0,60.200.0.0,60.208.0.0,60.232.0.0,60.235.0.0,60.245.128.0,60.247.0.0,60.252.0.0,60.253.128.0,60.255.0.0,61.4.80.0,61.4.176.0,61.8.160.0,61.28.0.0,61.29.128.0,61.45.128.0,61.47.128.0,61.48.0.0,61.87.192.0,61.128.0.0,61.232.0.0,61.236.0.0,61.240.0.0,114.28.0.0,114.54.0.0,114.60.0.0,114.64.0.0,114.68.0.0,114.80.0.0,116.1.0.0,116.2.0.0,116.4.0.0,116.8.0.0,116.13.0.0,116.16.0.0,116.52.0.0,116.56.0.0,116.58.128.0,116.58.208.0,116.60.0.0,116.66.0.0,116.69.0.0,116.70.0.0,116.76.0.0,116.89.144.0,116.90.184.0,116.95.0.0,116.112.0.0,116.116.0.0,116.128.0.0,116.192.0.0,116.193.16.0,116.193.32.0,116.194.0.0,116.196.0.0,116.198.0.0,116.199.0.0,116.199.128.0,116.204.0.0,116.207.0.0,116.208.0.0,116.212.160.0,116.213.64.0,116.213.128.0,116.214.32.0,116.214.64.0,116.214.128.0,116.215.0.0,116.216.0.0,116.224.0.0,116.242.0.0,116.244.0.0,116.248.0.0,116.252.0.0,116.254.128.0,116.255.128.0,117.8.0.0,117.21.0.0,117.22.0.0,117.24.0.0,117.32.0.0,117.40.0.0,117.44.0.0,117.48.0.0,117.53.48.0,117.53.176.0,117.57.0.0,117.58.0.0,117.59.0.0,117.60.0.0,117.64.0.0,117.72.0.0,117.74.64.0,117.74.128.0,117.75.0.0,117.76.0.0,117.80.0.0,117.100.0.0,117.103.16.0,117.103.128.0,117.106.0.0,117.112.0.0,117.120.64.0,117.120.128.0,117.121.0.0,117.121.128.0,117.121.192.0,117.122.128.0,117.124.0.0,117.128.0.0,118.24.0.0,118.64.0.0,118.66.0.0,118.67.112.0,118.72.0.0,118.80.0.0,118.84.0.0,118.88.32.0,118.88.64.0,118.88.128.0,118.89.0.0,118.91.240.0,118.102.16.0,118.112.0.0,118.120.0.0,118.124.0.0,118.126.0.0,118.132.0.0,118.144.0.0,118.178.0.0,118.180.0.0,118.184.0.0,118.192.0.0,118.212.0.0,118.224.0.0,118.228.0.0,118.230.0.0,118.239.0.0,118.242.0.0'
     const arr = ips.split(',');
     const rnd = parseInt(Math.random() * ((arr.length - 1) - 0 + 1) + 0, 10)
     const ip = arr[rnd];
     return ip;
+}
+
+/**
+ * 读取 Set-Cookie。
+ *
+ * 扫码登录的 803 与 token 续签的 200 都只通过响应头下发新 Cookie，
+ * 默认的 request() 只返回 JSON body，所以这里单独抽一个读取函数。
+ * Node 18.14+ / Deno 有 getSetCookie()，老运行时退回手工切分
+ * （Expires 属性里带逗号，不能直接 split(',')）。
+ */
+const readSetCookie = (response) => {
+    const headers = response?.headers
+    if (!headers) return []
+    if (typeof headers.getSetCookie === 'function') {
+        return headers.getSetCookie()
+    }
+    const raw = headers.get('set-cookie')
+    if (!raw) return []
+    return raw
+        .split(/,(?=\s*[!#$%&'*+\-.^_`|~0-9A-Za-z]+=)/)
+        .map((item) => item.trim())
+        .filter(Boolean)
 }
 
 const parseCookieString = (cookieString) => {
@@ -60,7 +82,10 @@ export const request = async (method, url, data = {}, options) => {
     if (url.includes('music.163.com'))
         headers['Referer'] = 'https://music.163.com'
 
-    let ip = cnip() || ''
+    // 扫码登录必须让「建 key / 轮询」看起来是同一个客户端：
+    // 默认每次随机一个国内 IP，扫码会话会显式关掉这个伪造（spoofIp: false），
+    // 用真实出口 IP——随机 X-Forwarded-For 反而容易被风控盯上。
+    let ip = options.spoofIp === false ? '' : (options.ip || cnip() || '')
     if (ip) {
         headers['X-Real-IP'] = ip
         headers['X-Forwarded-For'] = ip
@@ -77,7 +102,8 @@ export const request = async (method, url, data = {}, options) => {
         options.cookie = {
             ...options.cookie,
             __remember_me: true,
-            _ntes_nuid: nanoid(),
+            // 扫码会话会显式带上同一个 _ntes_nuid，不能被随机值覆盖
+            _ntes_nuid: options.cookie._ntes_nuid || nanoid(),
         }
         if (!options.cookie.MUSIC_U) {
             if (!options.cookie.MUSIC_A) {
@@ -164,15 +190,16 @@ export const request = async (method, url, data = {}, options) => {
     }
 
 
-    let res, count = 0
+    let res, count = 0, setCookie = []
     do {
-        res = await fetch(url, settings)
+        const response = await fetch(url, settings)
+        setCookie = readSetCookie(response)
         if (options.crypto === 'eapi') {
-            const _ = await res.arrayBuffer('utf-8')
+            const _ = await response.arrayBuffer('utf-8')
             const enc = new TextDecoder()
             res = JSON.parse(enc.decode(_))
         } else {
-            res = await res.json()
+            res = await response.json()
         }
         count++
         if (count > 1) {
@@ -184,6 +211,12 @@ export const request = async (method, url, data = {}, options) => {
         }
         await new Promise(resolve => setTimeout(resolve, 100))
     } while (res.code == -460)
+
+    // 需要读取响应头的调用（扫码登录、token 续签）显式打开这个开关；
+    // 默认仍返回 body，保持所有既有调用方行为不变。
+    if (options.returnHeaders) {
+        return { data: res, setCookie }
+    }
 
     return res;
 
