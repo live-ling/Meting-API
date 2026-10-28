@@ -3,3 +3,13 @@ dist
 .vscode
 .vercel
 data
+
+# 本地环境 / 密钥
+.env
+.env.*
+*.pem
+*.key
+
+# 临时脚本与本地实验锁文件（项目使用 npm，package-lock.json 为准）
+/tmp-shot2.mjs
+/pnpm-lock.yaml
