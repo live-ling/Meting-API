@@ -138,7 +138,17 @@ export function mountTestPage(core, doc = document, env = window) {
     for (const event of ['pause', 'waiting', 'ended']) audio.addEventListener(event, () => {
         visual(false)
         if (active && event === 'waiting') status(active, '音频缓冲中…')
-        if (active && event === 'ended') status(active, '播放结束；可手动选择下一首。')
+        if (active && event === 'ended') {
+            // 连播：一首播完自动切下一首并接着播；
+            // 已经是最后一首就停在当前曲，让用户手动处理。
+            const next = active.index + 1
+            if (next < active.songs.length) {
+                status(active, '连播：正在切到下一首…')
+                playTrack(active, next)
+            } else {
+                status(active, '已播到最后一首。')
+            }
+        }
     })
     for (const event of ['timeupdate', 'loadedmetadata', 'durationchange']) audio.addEventListener(event, sync)
     audio.addEventListener('error', () => {
@@ -198,8 +208,20 @@ export function mountTestPage(core, doc = document, env = window) {
                     const button = doc.createElement('button')
                     button.type = 'button'
                     button.className = 'lyric-line'
-                    button.textContent = line.text || '♪'
-                    button.setAttribute('aria-label', '跳转到 ' + clock(line.time) + ' ' + line.text)
+                    // LRC 里同一时间戳可能是「原文 + 翻译」两行，
+                    // 拆开排版：原文正常显示，翻译用更小更淡的一行跟在后面。
+                    const parts = line.text.split('\n')
+                    const main = doc.createElement('span')
+                    main.className = 'lyric-main'
+                    main.textContent = parts[0] || '♪'
+                    button.append(main)
+                    if (parts.length > 1) {
+                        const translation = doc.createElement('span')
+                        translation.className = 'lyric-translation'
+                        translation.textContent = parts.slice(1).join(' ')
+                        button.append(translation)
+                    }
+                    button.setAttribute('aria-label', '跳转到 ' + clock(line.time) + ' ' + parts[0])
                     button.addEventListener('click', () => { if (active === card) seek(line.time) })
                     card.lyrics.append(button)
                 }
@@ -252,6 +274,47 @@ export function mountTestPage(core, doc = document, env = window) {
                 if (token !== generation || active !== card || !playPending) return
                 if (!audio.getAttribute('src')) audio.src = card.songs[card.index].url
                 // 不占着通道等原生媒体缓冲。
+                audio.play().catch(error => {
+                    if (token !== generation) return
+                    playPending = false
+                    audio.pause()
+                    visual(false)
+                    status(card, '播放未开始：' + error.message + '；请手动操作，不自动重试。')
+                })
+            })
+        } catch (error) {
+            if (token === generation) { playPending = false; status(card, error.message) }
+        }
+    }
+
+    /**
+     * 切到第 index 首并立即播放。
+     *
+     * 用于「下一首 / 上一首」按钮与连播：
+     * 与 select 不同的是它会把音频真正放起来，而不是只换界面。
+     * 歌词与封面仍由 select 异步加载，与播放并行，不阻塞出声。
+     */
+    async function playTrack(card, index) {
+        if (index < 0 || index >= card.songs.length) return
+        const track = card.songs[index]
+        if (!track.url) {
+            // 没有可播地址：只切过去，并给出说明
+            await select(card, index)
+            status(card, '接口未返回可用的 HTTP(S) 音频链接。')
+            return
+        }
+        // select 的前半段是同步的（停旧曲、换界面），歌词封面在后台继续
+        const selection = select(card, index)
+        const token = generation
+        await selection
+        if (active !== card || generation !== token) return
+        if (scheduler.blocked()) { status(card, '请求冷却中，暂不发起播放。'); return }
+        playPending = true
+        status(card, '准备播放…')
+        try {
+            await scheduler.schedule(() => {
+                if (token !== generation || active !== card || !playPending) return
+                if (!audio.getAttribute('src')) audio.src = track.url
                 audio.play().catch(error => {
                     if (token !== generation) return
                     playPending = false
@@ -488,8 +551,19 @@ export function mountTestPage(core, doc = document, env = window) {
 
     card.load.addEventListener('click', () => { setDrawer(false); load() })
     card.play.addEventListener('click', () => toggle(card))
-    card.prev.addEventListener('click', () => select(card, card.index - 1))
-    card.next.addEventListener('click', () => select(card, card.index + 1))
+    // 上一首 / 下一首：切过去并接着播（正在放的时候才播，没在放就只换曲）
+    card.prev.addEventListener('click', () => {
+        const index = card.index - 1
+        if (index < 0) return
+        if (!audio.paused) playTrack(card, index)
+        else select(card, index)
+    })
+    card.next.addEventListener('click', () => {
+        const index = card.index + 1
+        if (index >= card.songs.length) return
+        if (!audio.paused) playTrack(card, index)
+        else select(card, index)
+    })
     card.seek.addEventListener('input', () => { if (active === card) seek(Number(card.seek.value)) })
     card.cover.addEventListener('error', () => { card.cover.hidden = true })
 

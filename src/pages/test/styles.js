@@ -154,6 +154,15 @@ code {
   transform: translateY(1px) rotate(45deg);
 }
 
+/* 站点图标：与首页 / 后台同一枚 logo（内联 data URI，不发额外请求） */
+.brand-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  object-fit: cover;
+  transform: translateY(2px);
+}
+
 .brand em {
   color: var(--muted);
   font-family: var(--font-display);
@@ -438,14 +447,13 @@ code {
   background: transparent;
   font-size: 0;
   cursor: pointer;
-  transition: transform var(--t-med) var(--ease), border-color var(--t-med) var(--ease),
-    background-color var(--t-med) var(--ease);
+  transition: border-color var(--t-med) var(--ease), background-color var(--t-med) var(--ease);
 }
 
+/* 上一首 / 下一首：只换颜色，不做位移——指针下的元素跟着抖很难受 */
 .tbtn:hover:not(:disabled) {
   border-color: var(--ink);
   background: var(--paper-2);
-  transform: translateY(-3px);
 }
 
 .tbtn:focus-visible {
@@ -456,7 +464,6 @@ code {
 .tbtn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-  transform: none;
 }
 
 .tbtn::before {
@@ -694,9 +701,17 @@ code {
 
 .art-stage {
   position: relative;
+  /*
+   * 唱片圆环与橙色衬纸都要探出封套一点，靠 padding 预留这块空间，
+   * 否则窄屏下它们会顶出栏外造成横向溢出。
+   * padding 用固定值（不随宽度缩放），保证任何断点下留白一致。
+   */
+  --stage-pad: 26px;
   width: min(100%, 440px);
+  padding: var(--stage-pad);
 }
 
+/* 圆环不再用负偏移，改由 stage 的 padding 让出空间 */
 .art-vtext {
   position: absolute;
   top: 0;
@@ -713,29 +728,67 @@ code {
   writing-mode: vertical-rl;
 }
 
+/*
+ * 封面背后的唱片沟槽圆环：三层同心圆。
+ *
+ * 只有内层虚线环在转：旋转会让元素的外接矩形变大（420px 的圆转 17°
+ * 就有 523px），外层跟着转就会顶出栏外造成横向溢出。
+ * 外层保持静止、内层转起来，照样有「唱片在转」的观感。
+ */
 .groove {
   position: absolute;
-  inset: -6%;
+  inset: 10px;
   z-index: 0;
   border: 1px solid var(--line);
   border-radius: 50%;
   opacity: 0.7;
 }
 
+/* 内圈虚线环反向转，视觉上像唱片在转 */
 .groove::before {
   content: '';
   position: absolute;
-  inset: 9%;
+  inset: 12%;
   border: 1px dashed var(--line);
   border-radius: 50%;
+  animation: grooveSpinReverse 26s linear infinite;
 }
 
+/* 第三层：缓慢呼吸的细环（缩放同样会放大包围盒，用 opacity 变化代替） */
+.groove::after {
+  content: '';
+  position: absolute;
+  inset: 24%;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  opacity: 0.35;
+  animation: groovePulse 5.5s var(--ease) infinite;
+}
+
+@keyframes grooveSpinReverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes groovePulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 0.75;
+  }
+}
+
+/* 橙色衬纸：斜着露在封套右下，偏移量收在 stage 的 padding 内 */
 .plate {
   position: absolute;
-  top: 24px;
-  right: -12px;
-  bottom: -12px;
-  left: 24px;
+  top: 14px;
+  right: -8px;
+  bottom: -8px;
+  left: 14px;
   z-index: 1;
   background: var(--accent);
   transform: rotate(2.2deg);
@@ -871,16 +924,27 @@ code {
   font-style: italic;
 }
 
+/*
+ * 歌词区排版：
+ * - 行距拉开（1.62），上下留白充足，滚动时不挤；
+ * - 当前行放大 + 加粗 + 深墨色，未唱行降到软墨色，形成清晰层级；
+ * - 行首短横是「唱针」标记，当前行变长并转橙。
+ * 高度：lyrics 栏是 flex 列，lyr-scroll 撑满剩余高度并自己滚动；
+ * 上下各留一屏的余量，最后几行也能被顶到中线附近。
+ */
 .lyr-scroll {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  padding: 1.1rem 2px 40vh;
+  height: 0;
+  padding: 30vh 0.2rem 30vh;
   overflow-y: auto;
   overscroll-behavior: contain;
   color: var(--muted);
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-size: 0.9375rem;
+  line-height: 1.62;
   white-space: pre-line;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 .lyr-scroll:focus-visible {
@@ -892,52 +956,70 @@ code {
   position: relative;
   display: block;
   width: 100%;
-  padding: 0.4rem 0.2rem 0.4rem 1.15rem;
+  padding: 0.55rem 0.25rem 0.55rem 1.35rem;
   border: 0;
   background: transparent;
   color: var(--muted-soft);
   font-family: var(--font-display);
-  font-size: 1.18rem;
-  line-height: 1.45;
+  font-size: 1.0625rem;
+  line-height: 1.62;
+  letter-spacing: 0.01em;
   text-align: left;
   cursor: pointer;
-  opacity: 0.62;
+  opacity: 0.58;
   transition: color 0.45s var(--ease), opacity 0.45s var(--ease), transform 0.45s var(--ease),
-    font-size 0.45s var(--ease);
+    font-size 0.45s var(--ease), padding-left 0.45s var(--ease);
 }
 
+/* 行首标记：未唱是细短横，当前行拉长并转橙 */
 .lyric-line::before {
   content: '';
   position: absolute;
-  top: 0.72em;
+  top: 1.35em;
   left: 0;
-  width: 0.55rem;
+  width: 0.6rem;
   height: 1px;
   background: var(--line-strong);
-  transition: width 0.4s var(--ease), background 0.4s var(--ease), height 0.4s var(--ease);
+  transition: width 0.4s var(--ease), background 0.4s var(--ease), height 0.4s var(--ease),
+    top 0.4s var(--ease);
+}
+
+/* 翻译行：跟在原文下面，更小更淡 */
+.lyric-translation {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted-soft);
+  font-size: 0.82em;
+  font-style: italic;
+  line-height: 1.5;
+  opacity: 0.85;
 }
 
 .lyric-line:hover {
   color: var(--muted);
-  opacity: 1;
+  opacity: 0.92;
 }
 
 .lyric-line:hover::before {
-  width: 1.1rem;
+  width: 1.05rem;
   background: var(--accent-hover);
 }
 
+/* 当前行：放大、加重、变深，并微微右移 */
 .lyric-line.current {
   color: var(--ink);
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.42;
+  letter-spacing: 0;
   opacity: 1;
-  transform: translateX(4px);
+  transform: translateX(6px);
+  padding-left: 1.5rem;
 }
 
 .lyric-line.current::before {
-  width: 1.6rem;
+  top: 1.02em;
+  width: 1.5rem;
   height: 2px;
   background: var(--accent);
 }

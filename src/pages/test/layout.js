@@ -24,7 +24,7 @@ export function renderTestPage({ sections, styles, mount, create }) {
 <body>
 <header class="topbar">
   <a class="brand" href="/">
-    <span class="mark" aria-hidden="true"></span>
+    <img class="brand-logo" src="${logoDataUri}" alt="" width="22" height="22">
     <span>Meting API</span>
     <em>试听</em>
   </a>

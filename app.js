@@ -10,8 +10,6 @@ import abuseDetectorMiddleware from './src/middleware/abuse-detector.js'
 import apiLogger from './src/service/api-logger.js'
 import apiCache from './src/service/api-cache.js'
 import { robotsHandler, sitemapHandler } from './src/routes/meta.js'
-import { capabilitiesHandler } from './src/routes/capabilities.js'
-import { assetsHandler, devProxyHandler, publicFileHandler, spaHandler } from './src/routes/spa.js'
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
@@ -34,16 +32,6 @@ const corsOptions = {
 }
 app.use('*', cors(corsOptions))
 app.use('*', logger())
-
-// 开发期前端资源代理：必须在滥用检测之前挂载。
-// Vite 的模块图会产生大量并发请求，走后端会被频控当成攻击。
-// Vite 没在跑时这里直接放行，行为与之前一致。
-app.use('*', async (c, next) => {
-    const dev = await devProxyHandler(c)
-    if (dev) return dev
-    await next()
-})
-
 app.use('*', abuseDetectorMiddleware)
 
 adminRoutes(app)
@@ -75,20 +63,9 @@ app.get('/favicon.ico', (c) => {
 app.get('/api', api)
 app.get('/api/', api)
 app.get('/api/stats', (c) => c.json({ success: true, data: { ...apiLogger.getStats(), cache: apiCache.stats() } }))
-// 能力矩阵：前端（React 试听页 / 首页）运行时读取，避免在前端维护第二份硬编码清单
-app.get('/api/capabilities', capabilitiesHandler)
 app.get('/robots.txt', robotsHandler)
 app.get('/sitemap.xml', sitemapHandler)
-
-// 前端构建产物（web/dist）：静态资源 + 单页应用入口。
-// 没构建前端时（Workers / Deno）自动回退到旧的内联试听页。
-app.get('/assets/*', assetsHandler)
-app.get('/logo.png', publicFileHandler)
-app.get('/test', async (c) => {
-    const spa = await spaHandler(c)
-    if (spa) return spa
-    return handler(c)
-})
+app.get('/test', handler)
 // 原始 Meting-API 的演示页叫 /demo，保留一个跳转，避免旧链接直接 404
 app.get('/demo', (c) => c.redirect('/test', 301))
 app.get('/', homePage)
