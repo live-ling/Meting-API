@@ -230,7 +230,7 @@ code {
 /* 错落入场 */
 .deck > *,
 .art-stage,
-.lyr-head {
+.lyr-scroll {
   opacity: 0;
   transform: translateY(16px);
   animation: fadeUp 0.8s var(--ease) forwards;
@@ -244,7 +244,7 @@ code {
 .deck > *:nth-child(6) { animation-delay: 0.3s; }
 .deck > *:nth-child(7) { animation-delay: 0.35s; }
 .art-stage { animation-delay: 0.22s; }
-.lyr-head { animation-delay: 0.3s; }
+.lyr-scroll { animation-delay: 0.3s; }
 
 @keyframes fadeUp {
   to {
@@ -351,6 +351,8 @@ code {
 /* 进度：细线 + 橙色旋钮 */
 .progress-wrap {
   margin-top: 0.15rem;
+  /* 进度条在控制台区域内居中 */
+  text-align: center;
 }
 
 .scrub {
@@ -417,7 +419,8 @@ code {
 .times {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 12px;
   margin-top: 0.25rem;
   color: var(--muted-soft);
   font-family: var(--font-mono);
@@ -426,10 +429,11 @@ code {
   text-transform: uppercase;
 }
 
-/* 传送控制 */
+/* 传送控制：在控制台区域内水平居中 */
 .transport {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: clamp(12px, 1.6vw, 22px);
   margin-top: 0.6rem;
 }
@@ -557,6 +561,7 @@ code {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 10px 14px;
   margin-top: 0.35rem;
   padding-top: 0.95rem;
@@ -596,8 +601,8 @@ code {
 .vol {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 9px;
-  margin-left: auto;
 }
 
 .vol-btn {
@@ -893,6 +898,14 @@ code {
 }
 
 /* ========== 右：歌词 ========== */
+/*
+ * 歌词区走「简约」路线：
+ * - 不要标题头（"歌词 / Lyrics"），歌词本身就是标题；
+ * - 不要行首的唱针短横，当前行用颜色与字重区分就够；
+ * - 不用大幅缩放，当前行只比别行大一点（1.28rem vs 1.05rem），
+ *   免得歌词在滚动时一高一低地晃。
+ * 右侧保留一条细滚动条，指示当前读到哪一段。
+ */
 .lyrics {
   display: flex;
   flex-direction: column;
@@ -900,35 +913,11 @@ code {
   padding: clamp(24px, 2.8vw, 42px) clamp(18px, 2.4vw, 34px);
 }
 
-.lyr-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 0.85rem;
-  margin-bottom: 0.5rem;
-  border-bottom: 1px solid var(--line);
-}
-
-.lyr-head h2 {
-  font-size: 0.76rem;
-  font-weight: 500;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-}
-
-.lyr-head span {
-  color: var(--muted-soft);
-  font-family: var(--font-display);
-  font-size: 1.08rem;
-  font-style: italic;
-}
-
 /*
  * 歌词区排版：
- * - 行距拉开（1.62），上下留白充足，滚动时不挤；
- * - 当前行放大 + 加粗 + 深墨色，未唱行降到软墨色，形成清晰层级；
- * - 行首短横是「唱针」标记，当前行变长并转橙。
+ * - 行距 1.7，段与段之间靠留白分开；
+ * - 当前行加粗变深，未唱行淡一些，层级清楚但不喧宾夺主；
+ * - 右侧细滚动条：看得见读到哪里，但不做成抢眼的宽条。
  * 高度：lyrics 栏是 flex 列，lyr-scroll 撑满剩余高度并自己滚动；
  * 上下各留一屏的余量，最后几行也能被顶到中线附近。
  */
@@ -936,15 +925,33 @@ code {
   flex: 1 1 auto;
   min-height: 0;
   height: 0;
-  padding: 30vh 0.2rem 30vh;
-  overflow-y: auto;
+  padding: 30vh 0.6rem 30vh 0.2rem;
+  overflow-y: scroll;
   overscroll-behavior: contain;
   color: var(--muted);
-  font-size: 0.9375rem;
-  line-height: 1.62;
+  font-size: 1.05rem;
+  line-height: 1.7;
   white-space: pre-line;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
+}
+
+/* WebKit 下的滚动条：细、低调，悬停才显色 */
+.lyr-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.lyr-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lyr-scroll::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  background: var(--line-strong);
+}
+
+.lyr-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-soft);
 }
 
 .lyr-scroll:focus-visible {
@@ -956,72 +963,42 @@ code {
   position: relative;
   display: block;
   width: 100%;
-  padding: 0.55rem 0.25rem 0.55rem 1.35rem;
+  padding: 0.5rem 0.25rem;
   border: 0;
   background: transparent;
   color: var(--muted-soft);
   font-family: var(--font-display);
-  font-size: 1.0625rem;
-  line-height: 1.62;
-  letter-spacing: 0.01em;
+  font-size: 1.05rem;
+  line-height: 1.7;
   text-align: left;
   cursor: pointer;
-  opacity: 0.58;
-  transition: color 0.45s var(--ease), opacity 0.45s var(--ease), transform 0.45s var(--ease),
-    font-size 0.45s var(--ease), padding-left 0.45s var(--ease);
-}
-
-/* 行首标记：未唱是细短横，当前行拉长并转橙 */
-.lyric-line::before {
-  content: '';
-  position: absolute;
-  top: 1.35em;
-  left: 0;
-  width: 0.6rem;
-  height: 1px;
-  background: var(--line-strong);
-  transition: width 0.4s var(--ease), background 0.4s var(--ease), height 0.4s var(--ease),
-    top 0.4s var(--ease);
+  opacity: 0.55;
+  transition: color 0.4s var(--ease), opacity 0.4s var(--ease), font-size 0.4s var(--ease);
 }
 
 /* 翻译行：跟在原文下面，更小更淡 */
 .lyric-translation {
   display: block;
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
   color: var(--muted-soft);
-  font-size: 0.82em;
+  font-size: 0.8em;
   font-style: italic;
   line-height: 1.5;
-  opacity: 0.85;
+  opacity: 0.8;
 }
 
 .lyric-line:hover {
   color: var(--muted);
-  opacity: 0.92;
+  opacity: 0.9;
 }
 
-.lyric-line:hover::before {
-  width: 1.05rem;
-  background: var(--accent-hover);
-}
-
-/* 当前行：放大、加重、变深，并微微右移 */
+/* 当前行：加粗、变深，字号只比别行大一点 */
 .lyric-line.current {
   color: var(--ink);
-  font-size: 1.5rem;
+  font-size: 1.28rem;
   font-weight: 600;
-  line-height: 1.42;
-  letter-spacing: 0;
+  line-height: 1.55;
   opacity: 1;
-  transform: translateX(6px);
-  padding-left: 1.5rem;
-}
-
-.lyric-line.current::before {
-  top: 1.02em;
-  width: 1.5rem;
-  height: 2px;
-  background: var(--accent);
 }
 
 /* ========== 抽屉 ========== */
@@ -1536,11 +1513,11 @@ code {
   }
 
   .lyric-line {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
   }
 
   .lyric-line.current {
-    font-size: 1.32rem;
+    font-size: 1.14rem;
   }
 
   .preset-list {

@@ -505,6 +505,14 @@ export function mountTestPage(core, doc = document, env = window) {
     const mute = root.querySelector('#mute')
     const volumeValue = root.querySelector('#volume-value')
 
+    /*
+     * 默认音量 55%：不直接取 1。
+     * 试听页常开着当背景音，全音量会盖掉其它声音。
+     * 以滑块上的值为准，这样 HTML 里的初值与实际音量始终一致。
+     */
+    const initialVolume = volume ? Math.max(0, Math.min(1, Number(volume.value))) : 0.55
+    audio.volume = initialVolume
+
     function paintVolume() {
         const level = audio.muted ? 0 : audio.volume
         if (volume) {

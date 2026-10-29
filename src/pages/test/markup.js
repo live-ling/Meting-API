@@ -169,8 +169,8 @@ export function renderPlayerCard({ source, capabilities, data }) {
     <div class="deckrow">
       <div class="vol">
         <button type="button" class="vol-btn" id="mute" aria-label="静音" title="静音"></button>
-        <input id="volume" type="range" min="0" max="1" step="0.01" value="1" aria-label="音量">
-        <output id="volume-value" for="volume" class="vol-num">100%</output>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.55" aria-label="音量">
+        <output id="volume-value" for="volume" class="vol-num">55%</output>
       </div>
     </div>
   </section>
@@ -190,10 +190,6 @@ export function renderPlayerCard({ source, capabilities, data }) {
   </section>
 
   <section class="lyrics" aria-label="歌词">
-    <header class="lyr-head">
-      <h2>歌词</h2>
-      <span>Lyrics</span>
-    </header>
     <div class="lyr-scroll" data-ui="lyrics" tabindex="0" role="region" aria-label="滚动歌词">还没有歌词。
 
 先载入一个数据源，再点播放。</div>
