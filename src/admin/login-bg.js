@@ -99,8 +99,11 @@ const saveToDisk = () => {
 const isFresh = (cfg) => {
     if (!image || !meta) return false
     if (meta.apiUrl !== cfg.apiUrl) return false
-    const ttl = Math.max(1, Number(cfg.ttlHours) || DEFAULT_LOGIN_BG_TTL_HOURS) * 60 * 60 * 1000
-    return now() - meta.fetchedAt < ttl
+    const configured = Number(cfg.ttlHours)
+    const ttlHours = Number.isFinite(configured) && configured >= 0 ? configured : DEFAULT_LOGIN_BG_TTL_HOURS
+    // TTL=0 表示永久缓存：接口地址不变就不再自动刷新
+    if (ttlHours === 0) return true
+    return now() - meta.fetchedAt < ttlHours * 60 * 60 * 1000
 }
 
 const fetchImage = async (apiUrl) => {

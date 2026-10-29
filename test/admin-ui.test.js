@@ -100,3 +100,93 @@ describe('侧栏与 API 日志标题', () => {
         expect(html).toContain('cell-clip-song')
     })
 })
+
+describe('API 日志按 IP 折叠与归属地展示', () => {
+    it('默认按 IP 折叠，聚合行不再显示平台和类型', () => {
+        expect(html).toContain('id="apiLogGroupByIp"')
+        expect(html).toContain('id="apiLogsHead"')
+        expect(html).toContain('API_LOG_GROUP_HEAD')
+        expect(html).toContain('<th>最近调用</th><th>IP 地址</th><th>归属地</th>')
+        // 详情表移除归属地列，归属地改由大标题展示
+        expect(html).toContain('<th>时间</th><th>平台</th><th>类型</th><th>请求 ID</th>')
+        expect(html).toContain('api-log-detail-geo-title')
+    })
+
+    it('展开详情与归属地轮询逻辑存在', () => {
+        expect(html).toContain('toggleApiLogGroup')
+        expect(html).toContain('fetchApiLogDetail')
+        expect(html).toContain('data-more-ip')
+        expect(html).toContain('ipExact')
+        expect(html).toContain('geoPending')
+    })
+
+    it('设置页有可排序、可独立启用的多通道列表', () => {
+        expect(html).toContain('id="geoProviderList"')
+        expect(html).toContain('renderGeoProviderList')
+        expect(html).toContain('moveGeoProvider')
+        expect(html).toContain('collectGeoProviders')
+        expect(html).toContain('testGeoProvider')
+        expect(html).toContain("p.supportsIPv4 !== false ? 'IPv4' : ''")
+        expect(html).toContain("join(' / ')")
+        expect(html).toContain('data-geo-action="edit-key"')
+        expect(html).toContain('geo-provider-buttons')
+        expect(html).toContain('geo-provider-doc')
+        expect(html).toContain('border-radius: 999px')
+    })
+
+    it('API 日志每一项都有独立圆角卡片样式', () => {
+        expect(html).toContain('border-spacing: 0 8px')
+        expect(html).toContain('.table-api-logs > tbody > tr > td:first-child')
+        expect(html).toContain('border-radius: var(--radius) 0 0 var(--radius)')
+        expect(html).toContain('border-radius: 0 var(--radius) var(--radius) 0')
+        expect(html).toContain('.table-api-logs > tbody > tr.api-log-detail-row > td')
+    })
+})
+
+describe('仪表盘图表与来源详情', () => {
+    it('仪表盘有折线图、饼图与 24h / 7d / 30d 范围选择', () => {
+        expect(html).toContain('id="dashboardRange"')
+        expect(html).toContain('<option value="168">近 7 天</option>')
+        expect(html).toContain('<option value="720">近 30 天</option>')
+        expect(html).toContain('id="boardLineChart"')
+        expect(html).toContain('id="boardLineNote"')
+        expect(html).toContain('id="boardDonut"')
+        expect(html).toContain('renderBoardLineChart')
+        expect(html).toContain('renderBoardDonut')
+        expect(html).toContain('legend-total')
+        expect(html).toContain('donut-legend')
+        expect(html).toContain('@keyframes chartDraw')
+        expect(html).toContain("class=\"chart-line")
+        expect(html).toContain('donut-seg')
+    })
+
+    it('来源分析用模态框展示详情并按来源筛选调用', () => {
+        expect(html).toContain('id="refererLimit"')
+        expect(html).toContain('id="refererSummary"')
+        expect(html).toContain('id="refererModal"')
+        expect(html).toContain('openRefererModal')
+        expect(html).not.toContain('referer-detail-row')
+        expect(html).not.toContain('toggleRefererRow')
+        expect(html).toContain('data-referer-view')
+        expect(html).toContain('id="apiLogReferer"')
+        expect(html).toContain('renderRefererDetailHtml')
+        expect(html).toContain('border-spacing: 0 7px')
+        expect(html).toContain('.table-referers > tbody > tr > td:first-child')
+    })
+
+    it('缓存页有命中率与分类型 TTL 图表', () => {
+        expect(html).toContain('id="cacheHitDonut"')
+        expect(html).toContain('id="cacheTtlBars"')
+        expect(html).toContain('renderCacheCharts')
+        expect(html).toContain('cache-donut-seg')
+        expect(html).toContain('cache-ttl-fill')
+    })
+
+    it('通知使用卡片式浅底而不是纯色背景', () => {
+        expect(html).toContain('class="toast-icon"')
+        expect(html).toContain('border-left-color: var(--success)')
+        expect(html).toContain('border-left-color: var(--danger)')
+        expect(html).not.toContain('background: #14664a')
+        expect(html).not.toContain('.toast-success { background: var(--success); }')
+    })
+})

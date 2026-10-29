@@ -13,7 +13,15 @@ import {
     secondsToMinutes,
     minutesToSeconds,
 } from '../service/cache-config.js'
-import { queryShowAPI, getGeoCacheStats, clearGeoCache, isPublicIP } from '../service/geo.js'
+import {
+    queryShowAPI,
+    testGeoProviders,
+    getGeoCacheStats,
+    clearGeoCache,
+    clearGeoFailures,
+    isPublicIP,
+} from '../service/geo.js'
+import { GEO_PROVIDER_DEFS, mergeGeoProviderOverrides } from '../service/geo-providers.js'
 import { getLoginBgStatus, refreshLoginBg, clearLoginBgCache } from './login-bg.js'
 import fs from 'fs'
 import path from 'path'
@@ -465,9 +473,43 @@ export const adminRoutes = (app) => {
         })
     })
 
-    // ============ IP 归属地接口（ShowAPI） ============
+    // ============ IP 归属地接口（多通道） ============
 
     const maskGeoKey = (key) => (key ? '****' + String(key).slice(-4) : '')
+
+    /** 后台展示用：通道元数据 + 当前启用状态 / 顺序 / 密钥掩码。 */
+    const getGeoAdminData = () => {
+        const config = store.getGeoConfig()
+        const cache = getGeoCacheStats()
+        const providers = GEO_PROVIDER_DEFS.map((def) => {
+            const item = config.providers?.[def.id] || {}
+            return {
+                id: def.id,
+                label: def.label,
+                needsKey: def.needsKey,
+                supportsIPv4: def.supportsIPv4 !== false,
+                supportsIPv6: def.supportsIPv6,
+                docsUrl: def.docsUrl,
+                docsLabel: def.docsLabel,
+                note: def.note,
+                enabled: item.enabled === true,
+                order: Number.isFinite(Number(item.order)) ? Number(item.order) : def.defaultOrder,
+                hasKey: !!item.key,
+                keyPreview: maskGeoKey(item.key),
+            }
+        }).sort((a, b) => a.order - b.order)
+        const showapi = providers.find((item) => item.id === 'showapi') || {}
+        return {
+            enabled: config.enabled,
+            // 兼容旧前端：ShowAPI 仍是主通道
+            hasKey: !!showapi.hasKey,
+            keyPreview: showapi.keyPreview || '',
+            cacheSize: cache.size,
+            cacheTtlDays: cache.ttlDays,
+            cacheBySource: cache.bySource,
+            providers,
+        }
+    }
 
     // 后台「获取我的 IP」：优先用反代传入的公网地址；本地/内网访问时
     // 退回 uapis 的 myip 接口（服务端出口 IP，本地开发时就是本机公网 IP）。
@@ -500,34 +542,16 @@ export const adminRoutes = (app) => {
     }
 
     app.get('/admin/geo', authMiddleware, adminMiddleware, async (c) => {
-        const config = store.getGeoConfig()
-        const cache = getGeoCacheStats()
-        return c.json({
-            success: true,
-            data: {
-                enabled: config.enabled,
-                hasKey: !!config.key,
-                keyPreview: maskGeoKey(config.key),
-                cacheSize: cache.size,
-                cacheTtlDays: cache.ttlDays,
-            },
-        })
+        return c.json({ success: true, data: getGeoAdminData() })
     })
 
     app.put('/admin/geo', authMiddleware, adminMiddleware, async (c) => {
         const body = await c.req.json().catch(() => ({}))
         const result = await store.setGeoConfig(body, c.get('username'))
         if (!result.success) return c.json(result, 400)
-        const config = store.getGeoConfig()
-        return c.json({
-            ...result,
-            data: {
-                enabled: config.enabled,
-                hasKey: !!config.key,
-                keyPreview: maskGeoKey(config.key),
-                cacheSize: getGeoCacheStats().size,
-            },
-        })
+        // 配置变了，之前失败过的 IP 允许立即用新通道重试
+        clearGeoFailures()
+        return c.json({ success: true, data: getGeoAdminData() })
     })
 
     app.get('/admin/geo/client-ip', authMiddleware, adminMiddleware, async (c) => {
@@ -536,16 +560,31 @@ export const adminRoutes = (app) => {
 
     app.post('/admin/geo/test', authMiddleware, adminMiddleware, async (c) => {
         const body = await c.req.json().catch(() => ({}))
-        const config = store.getGeoConfig()
-        const key = typeof body.key === 'string' && body.key.trim() ? body.key.trim() : config.key
+        const base = store.getGeoConfig()
+        // 支持用表单里尚未保存的密钥/顺序直接测试；单通道与全部通道共用一套逻辑
+        const providers = mergeGeoProviderOverrides(base.providers, body.providers)
+        if (typeof body.key === 'string' && body.key.trim()) {
+            providers.showapi.key = body.key.trim()
+        }
+        const config = { ...base, providers }
         // 不填 IP 时直接用当前访问后台的公网 IP，省去手动复制
         let ip = typeof body.ip === 'string' ? body.ip.trim() : ''
         if (!ip) {
             const fallback = await resolveClientIP(c)
             ip = fallback.ip
         }
-        const result = await queryShowAPI(ip, key)
-        return c.json(result, result.success ? 200 : 400)
+        if (!isPublicIP(ip)) {
+            return c.json({ success: false, error: '请输入公网 IPv4 / IPv6 地址', results: [] }, 400)
+        }
+        const providerId = typeof body.provider === 'string' && body.provider ? body.provider : 'all'
+        // 旧客户端只传 key 时保持 ShowAPI 单通道语义
+        if (!body.provider && typeof body.key === 'string' && body.key.trim()) {
+            const legacy = await queryShowAPI(ip, body.key.trim())
+            return c.json(legacy)
+        }
+        // 测试结果（含通道失败）统一用 200 返回，前端按 results 逐项展示
+        const result = await testGeoProviders(ip, config, providerId)
+        return c.json(result)
     })
 
     app.post('/admin/geo/cache/clear', authMiddleware, adminMiddleware, async (c) => {
@@ -835,36 +874,47 @@ export const adminRoutes = (app) => {
     // === API 调用日志 ===
 
     app.get('/admin/api-logs/stats', authMiddleware, async (c) => {
-        return c.json({ success: true, data: apiLogger.getStats() })
+        const hours = Math.min(24 * 30, Math.max(1, parseInt(c.req.query('hours')) || 24))
+        return c.json({ success: true, data: apiLogger.getStats({ hours }) })
     })
 
     // 来源统计：按 Referer 站点聚合请求数与独立 IP
     app.get('/admin/api-logs/referers', authMiddleware, async (c) => {
         const hours = Math.min(24 * 30, Math.max(1, parseInt(c.req.query('hours')) || 24))
-        const limit = Math.min(100, Math.max(5, parseInt(c.req.query('limit')) || 30))
+        const limit = Math.min(200, Math.max(5, parseInt(c.req.query('limit')) || 30))
         const host = c.req.query('host') || ''
         return c.json({ success: true, data: apiLogger.getRefererStats({ hours, limit, host }) })
     })
 
     // 看板：按小时分桶的请求趋势
     app.get('/admin/api-logs/timeseries', authMiddleware, async (c) => {
-        const hours = Math.min(72, Math.max(6, parseInt(c.req.query('hours')) || 24))
+        const hours = Math.min(24 * 30, Math.max(6, parseInt(c.req.query('hours')) || 24))
         return c.json({ success: true, data: apiLogger.getTimeseries({ hours }) })
     })
 
     app.get('/admin/api-logs', authMiddleware, async (c) => {
-        const { startTime, endTime, ip, server, type, status, keyword, page, pageSize } = c.req.query()
-        const result = apiLogger.getLogs({
+        const { startTime, endTime, ip, ipExact, server, type, status, keyword, referer, group, page, pageSize } = c.req.query()
+        const filters = {
             startTime: startTime ? Number(startTime) : undefined,
             endTime: endTime ? Number(endTime) : undefined,
             ip: ip || undefined,
+            ipExact: ipExact || undefined,
             server: server || undefined,
             type: type || undefined,
             status: status || undefined,
             keyword: keyword || undefined,
+            refererSite: referer || undefined,
             page: page ? Math.max(1, parseInt(page) || 1) : 1,
-            pageSize: pageSize ? Math.min(200, Math.max(10, parseInt(pageSize) || 50)) : 50,
-        })
+        }
+        const result = group === 'ip'
+            ? apiLogger.getGroupedLogs({
+                ...filters,
+                pageSize: pageSize ? Math.min(100, Math.max(5, parseInt(pageSize) || 25)) : 25,
+            })
+            : apiLogger.getLogs({
+                ...filters,
+                pageSize: pageSize ? Math.min(200, Math.max(10, parseInt(pageSize) || 50)) : 50,
+            })
         return c.json({ success: true, ...result })
     })
 
@@ -875,7 +925,7 @@ export const adminRoutes = (app) => {
     })
 
     app.get('/admin/api-logs/export', authMiddleware, async (c) => {
-        const { startTime, endTime, ip, server, type, status, keyword } = c.req.query()
+        const { startTime, endTime, ip, server, type, status, keyword, referer } = c.req.query()
         const csv = apiLogger.exportCSV({
             startTime: startTime ? Number(startTime) : undefined,
             endTime: endTime ? Number(endTime) : undefined,
@@ -884,6 +934,7 @@ export const adminRoutes = (app) => {
             type: type || undefined,
             status: status || undefined,
             keyword: keyword || undefined,
+            refererSite: referer || undefined,
         })
         return new Response(csv, {
             headers: {

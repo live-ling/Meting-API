@@ -11,7 +11,8 @@ export const DEFAULT_LOGIN_BG_API = 'https://uapis.cn/api/v1/random/image?catego
 /** 默认缓存 6 小时：一天最多换 4 次，远低于接口的访问配额 */
 export const DEFAULT_LOGIN_BG_TTL_HOURS = 6
 
-export const LOGIN_BG_TTL_MIN_HOURS = 1
+/** 0 表示永久缓存：只要图片接口地址不变就不再自动换图 */
+export const LOGIN_BG_TTL_MIN_HOURS = 0
 export const LOGIN_BG_TTL_MAX_HOURS = 168
 
 export const LOGIN_BG_URL_MAX_LENGTH = 500

@@ -417,9 +417,242 @@ const getAdminHtml = (options = {}) => {
         .cell-clip-type { max-width: 220px; }
         .cell-clip-id { max-width: 140px; }
         .cell-clip-song { max-width: 240px; }
-        .table-api-logs { table-layout: fixed; min-width: 1040px; }
+        .table-api-logs {
+            table-layout: fixed;
+            min-width: 1180px;
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
         .table-api-logs td { overflow: hidden; white-space: nowrap; }
         .table-api-logs td:first-child { white-space: nowrap; }
+        .table-api-logs thead th { font-size: 12px; border-bottom: none; padding-bottom: 6px; }
+        /* 每个调用项都是一张独立圆角卡片：首尾格补左右边框与圆角 */
+        .table-api-logs > tbody > tr > td {
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-light);
+            border-bottom: 1px solid var(--border-light);
+            transition: background var(--transition), border-color var(--transition);
+        }
+        .table-api-logs > tbody > tr > td:first-child {
+            border-left: 1px solid var(--border-light);
+            border-radius: var(--radius) 0 0 var(--radius);
+        }
+        .table-api-logs > tbody > tr > td:last-child {
+            border-right: 1px solid var(--border-light);
+            border-radius: 0 var(--radius) var(--radius) 0;
+        }
+        .table-api-logs > tbody > tr:hover > td {
+            background: var(--primary-bg);
+            border-color: var(--primary-border);
+        }
+        .api-log-group { cursor: pointer; }
+        .table-api-logs > tbody > tr.api-log-group.is-open > td {
+            background: var(--primary-bg);
+            border-color: var(--primary-border);
+        }
+        .api-log-caret {
+            display: inline-block;
+            width: 14px;
+            color: var(--text-muted);
+            transition: transform var(--transition);
+        }
+        .api-log-group.is-open .api-log-caret { transform: rotate(90deg); }
+        .table-api-logs > tbody > tr.api-log-detail-row > td {
+            padding: 0 !important;
+            background: var(--bg);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            white-space: normal;
+        }
+        .api-log-detail { padding: 10px 14px 14px 30px; }
+        .api-log-detail-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+        .api-log-detail .table { background: var(--bg-card); border-radius: var(--radius-sm); }
+        .api-log-detail .table th { font-size: 11px; padding: 8px 10px; }
+        .api-log-detail .table td { font-size: 12px; padding: 8px 10px; }
+        .table-api-log-detail { min-width: 980px; }
+        .table-referers {
+            table-layout: fixed;
+            min-width: 900px;
+            border-collapse: separate;
+            border-spacing: 0 7px;
+        }
+        .table-referers thead th { border-bottom: none; padding-bottom: 6px; }
+        .table-referers > tbody > tr > td {
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-light);
+            border-bottom: 1px solid var(--border-light);
+            transition: background var(--transition), border-color var(--transition);
+        }
+        .table-referers > tbody > tr > td:first-child {
+            border-left: 1px solid var(--border-light);
+            border-radius: var(--radius) 0 0 var(--radius);
+        }
+        .table-referers > tbody > tr > td:last-child {
+            border-right: 1px solid var(--border-light);
+            border-radius: 0 var(--radius) var(--radius) 0;
+        }
+        .referer-row { cursor: pointer; }
+        .table-referers > tbody > tr.referer-row:hover > td {
+            background: var(--primary-bg);
+            border-color: var(--primary-border);
+        }
+        .referer-detail { padding: 12px 16px 14px 30px; }
+        .referer-detail-modal { padding: 0; }
+        .referer-detail-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+        .referer-dist-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .referer-dist {
+            padding: 10px 12px;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            background: var(--bg-card);
+        }
+        .referer-dist-label { display: block; margin-bottom: 6px; color: var(--text-muted); font-size: 11px; letter-spacing: 0.04em; }
+        .referer-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .referer-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: var(--primary-bg);
+            color: var(--text-secondary);
+            font-size: 11px;
+        }
+        .referer-chip b { color: var(--text); font-weight: 600; }
+        .referer-ip-table { min-width: 720px; background: var(--bg-card); border-radius: var(--radius-sm); }
+        .referer-ip-table th { font-size: 11px; padding: 8px 10px; }
+        .referer-ip-table td { font-size: 12px; padding: 8px 10px; }
+        .geo-cell { display: block; line-height: 1.35; overflow: hidden; }
+        .geo-main {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--text);
+        }
+        .geo-sub {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+        .geo-source {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 0 5px;
+            border-radius: 4px;
+            background: var(--info-bg);
+            color: var(--info);
+            font-size: 10px;
+            font-weight: 600;
+            vertical-align: 1px;
+        }
+        .geo-pending { color: var(--text-muted); font-size: 12px; }
+        .geo-cell-lg .geo-main { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+        .geo-cell-lg .geo-sub { font-size: 12px; }
+        .api-log-detail-geo { margin-bottom: 10px; }
+        .api-log-detail-geo-title {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+            color: var(--text);
+        }
+        .api-log-detail-geo-meta { margin-top: 3px; color: var(--text-muted); font-size: 12px; }
+        .api-log-count { font-weight: 700; font-size: 14px; }
+        .api-log-count small { font-weight: 500; color: var(--text-muted); font-size: 11px; }
+        .api-log-codes { color: var(--text-muted); font-size: 11px; }
+        .geo-provider-list { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 16px; }
+        .geo-provider-row {
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: var(--bg-card);
+        }
+        .geo-provider-row.is-disabled { opacity: 0.62; }
+        .geo-provider-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .geo-provider-doc {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: auto;
+            padding: 3px 10px;
+            border: 1px solid var(--primary-border);
+            border-radius: 999px;
+            background: var(--primary-bg);
+            color: var(--primary-dark);
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.5;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+        .geo-provider-doc:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+            text-decoration: none;
+        }
+        .geo-provider-head .provider-order {
+            min-width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--primary-bg);
+            color: var(--primary-dark);
+            font-size: 11px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .geo-provider-note { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+        .geo-provider-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+        .geo-provider-actions .btn { padding: 5px 9px; font-size: 12px; }
+        .geo-provider-actions input {
+            flex: 1 1 220px;
+            min-width: 170px;
+            padding: 7px 10px;
+            font-size: 12px;
+        }
+        .geo-provider-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+        .geo-test-results { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+        .geo-test-result {
+            border-left: 3px solid var(--border);
+            padding: 6px 10px;
+            font-size: 12px;
+            background: var(--bg);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        }
+        .geo-test-result.is-ok { border-left-color: var(--success); }
+        .geo-test-result.is-fail { border-left-color: var(--danger); }
         .table-scroll-y {
             max-height: 320px;
             overflow-y: auto;
@@ -539,9 +772,13 @@ const getAdminHtml = (options = {}) => {
             position: fixed;
             top: 24px;
             right: 24px;
-            padding: 14px 22px;
-            border-radius: var(--radius-sm);
-            color: white;
+            padding: 12px 18px;
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--primary);
+            border-radius: 12px;
+            background: var(--bg-card);
+            color: var(--text);
+            backdrop-filter: blur(12px);
             z-index: 2000;
             animation: slideIn 0.35s cubic-bezier(0.16,1,0.3,1);
             font-size: 13px;
@@ -550,10 +787,14 @@ const getAdminHtml = (options = {}) => {
             display: flex;
             align-items: center;
             gap: 8px;
-            max-width: 360px;
+            max-width: 380px;
         }
-        .toast-success { background: var(--success); }
-        .toast-error { background: var(--danger); }
+        .toast-success { border-left-color: var(--success); }
+        .toast-error { border-left-color: var(--danger); }
+        .toast-icon { display: inline-flex; flex: 0 0 auto; color: var(--primary); }
+        .toast-success .toast-icon { color: var(--success); }
+        .toast-error .toast-icon { color: var(--danger); }
+        .toast-text { min-width: 0; line-height: 1.45; }
 
         .cookie-preview {
             font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
@@ -763,6 +1004,50 @@ const getAdminHtml = (options = {}) => {
         }
         .cache-stat span { display: block; color: var(--text-muted); font-size: 11px; }
         .cache-stat b { display: block; margin-top: 4px; color: var(--text); font-size: 15px; font-weight: 700; }
+        .cache-chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 12px;
+            margin: 4px 0 12px;
+        }
+        .cache-chart-card {
+            min-width: 0;
+            padding: 12px;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            background: var(--bg-card);
+        }
+        .cache-chart-title {
+            margin-bottom: 8px;
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+        .cache-donut-flex { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .cache-donut-figure { flex: 0 0 104px; }
+        .cache-donut-figure svg { display: block; width: 104px; height: 104px; }
+        .cache-donut-legend { flex: 1; min-width: 100px; display: flex; flex-direction: column; gap: 7px; }
+        .cache-donut-row { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; }
+        .cache-donut-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 3px; }
+        .cache-donut-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+        .cache-donut-val { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .cache-donut-seg { opacity: 0; animation: cacheDonutIn .6s ease forwards; }
+        .cache-ttl-bars { display: flex; flex-direction: column; gap: 8px; }
+        .cache-ttl-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+        .cache-ttl-label { flex: 0 0 58px; overflow: hidden; color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+        .cache-ttl-track { flex: 1; height: 6px; overflow: hidden; border-radius: 999px; background: var(--border-light); }
+        .cache-ttl-fill {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+            transform-origin: left center;
+            animation: cacheBarIn .55s ease forwards;
+        }
+        .cache-ttl-val { flex: 0 0 62px; text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        @keyframes cacheDonutIn { from { opacity: 0; stroke-width: 7; } to { opacity: 1; stroke-width: 14; } }
+        @keyframes cacheBarIn { from { transform: scaleX(0); } to { transform: scaleX(1); } }
         .input-with-button { display: flex; gap: 8px; align-items: center; }
         .input-with-button input { flex: 1; min-width: 0; }
         .input-with-button .btn { flex: 0 0 auto; }
@@ -1307,6 +1592,18 @@ const getAdminHtml = (options = {}) => {
         .status-active { box-shadow: 0 0 0 3px var(--success-bg); }
 
         /* ---------- 仪表盘看板 ---------- */
+        .board-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .board-toolbar-label { color: var(--text-muted); font-size: 12px; }
+        .board-toolbar-hint { color: var(--text-muted); font-size: 11px; }
+        .board-toolbar .filter-input { min-width: 128px; }
+        .board-toolbar .btn { padding: 6px 12px; font-size: 12px; }
         .board-kpis {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -1333,34 +1630,59 @@ const getAdminHtml = (options = {}) => {
         .board-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; margin-bottom: 16px; }
         .board-grid-3 { grid-template-columns: 1.2fr 1fr 1fr; }
 
-        .bars {
-            display: flex;
-            align-items: flex-end;
-            gap: 3px;
-            height: 210px;
-            padding: 6px 0;
-            border-bottom: 1px solid var(--border-light);
+        .line-chart { min-height: 218px; overflow-x: auto; }
+        .line-chart svg { display: block; width: 100%; min-width: 520px; height: auto; overflow: visible; }
+        .line-chart text { font-family: inherit; }
+        .chart-note { margin-top: 6px; color: var(--text-muted); font-size: 11px; }
+        .chart-area { opacity: 0; animation: chartFadeIn .8s .12s ease forwards; }
+        .chart-line {
+            stroke-dasharray: 1;
+            stroke-dashoffset: 1;
+            animation: chartDraw 1.15s cubic-bezier(.22,.61,.36,1) forwards;
         }
-        .bar {
-            display: flex;
-            flex: 1;
-            flex-direction: column;
-            justify-content: flex-end;
-            height: 100%;
-            min-width: 3px;
-            overflow: hidden;
-            border-radius: 2px 2px 0 0;
+        .chart-line-success { animation-delay: .08s; }
+        .chart-line-error { animation-delay: .16s; }
+        .chart-dot {
+            opacity: 0;
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: chartDotIn .35s .55s ease forwards;
         }
-        .bar span { display: block; width: 100%; }
-        .bar .ok { background: var(--primary); }
-        .bar .err { background: var(--danger); }
-        .bar:hover .ok { background: var(--primary-dark); }
-        .bars-axis {
+        .chart-label { opacity: 0; animation: chartFadeIn .5s .5s ease forwards; }
+        .donut-wrap { min-height: 218px; }
+        .donut-flex { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; min-height: 218px; }
+        .donut-figure { flex: 0 0 150px; }
+        .donut-figure svg { display: block; width: 150px; height: 150px; }
+        .donut-legend { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 8px; }
+        .donut-legend-row {
             display: flex;
-            justify-content: space-between;
-            margin-top: 6px;
-            color: var(--text-muted);
-            font-size: 10px;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            font-size: 12px;
+            opacity: 0;
+            animation: chartRise .45s ease forwards;
+        }
+        .donut-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 3px; }
+        .donut-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .donut-val { color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .donut-seg { opacity: 0; animation: donutFadeIn .7s ease forwards; }
+        .donut-center { opacity: 0; animation: chartFadeIn .5s .25s ease forwards; }
+
+        @keyframes chartDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+        @keyframes chartFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes chartDotIn { from { opacity: 0; transform: scale(.35); } to { opacity: 1; transform: scale(1); } }
+        @keyframes chartRise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes donutFadeIn { from { opacity: 0; stroke-width: 10; } to { opacity: 1; stroke-width: 18; } }
+
+        @media (prefers-reduced-motion: reduce) {
+            .chart-area, .chart-dot, .chart-label, .donut-legend-row, .donut-seg, .donut-center,
+            .cache-donut-seg, .cache-ttl-fill {
+                animation: none;
+                opacity: 1;
+            }
+            .chart-line { animation: none; stroke-dashoffset: 0; }
+            .cache-ttl-fill { transform: none; }
         }
 
         .rows { display: flex; flex-direction: column; gap: 2px; }
@@ -1383,8 +1705,6 @@ const getAdminHtml = (options = {}) => {
         .share i { display: block; height: 100%; border-radius: 99px; background: var(--primary); }
         /* 数值列统一宽度右对齐：各行的条与数字落在同一竖线上 */
         .list-val { flex: 0 0 auto; min-width: 44px; margin-left: auto; text-align: right; color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-        /* 请求类型的字段都很短，单独收窄标签列，避免标签与条形之间出现大片空档 */
-        #boardTypes .list-name { flex-basis: 78px; }
 
         @media (max-width: 1100px) {
             .board-grid, .board-grid-3 { grid-template-columns: 1fr 1fr; }
@@ -1468,7 +1788,8 @@ const getAdminHtml = (options = {}) => {
         }
         .legend-item { display: inline-flex; align-items: center; gap: 6px; }
         .legend-swatch { width: 8px; height: 8px; border-radius: 2px; }
-        .legend-ok { background: var(--primary); }
+        .legend-total { background: var(--primary-dark); }
+        .legend-ok { background: var(--success); }
         .legend-err { background: var(--danger); }
         .legend-note { margin-left: auto; }
 
@@ -1620,14 +1941,15 @@ const getAdminHtml = (options = {}) => {
 
         /* ---------- 提示 ---------- */
         .toast {
-            border-radius: 10px;
-            background: var(--text);
-            color: #fdfaf4;
+            border-radius: 12px;
+            background: var(--bg-card);
+            color: var(--text);
             font-size: 12.5px;
             box-shadow: var(--shadow-md);
+            border-left-width: 3px;
         }
-        .toast-success { background: #14664a; }
-        .toast-error { background: #8f2620; }
+        .toast-success { border-left-color: var(--success); }
+        .toast-error { border-left-color: var(--danger); }
 
         /* ---------- 其余细节 ---------- */
         .empty-state { padding: 48px 20px; }
@@ -1876,32 +2198,42 @@ const getAdminHtml = (options = {}) => {
 
             <div class="page-content">
                 <div class="content-section active" id="dashboardSection">
+                    <div class="board-toolbar">
+                        <span class="board-toolbar-label">数据范围</span>
+                        <select id="dashboardRange" class="filter-input" onchange="loadDashboard()">
+                            <option value="24">近 24 小时</option>
+                            <option value="168">近 7 天</option>
+                            <option value="720">近 30 天</option>
+                        </select>
+                        <span class="board-toolbar-hint" id="dashboardRangeHint">按小时统计</span>
+                        <button class="btn btn-default btn-sm" onclick="loadDashboard()">刷新</button>
+                    </div>
                     <div class="board-kpis">
-                        <div class="kpi"><div class="kpi-label">24h 请求</div><div class="kpi-value" id="kpiCalls">-</div><div class="kpi-sub" id="kpiCallsSub">累计 -</div></div>
-                        <div class="kpi"><div class="kpi-label">成功率</div><div class="kpi-value" id="kpiRate">-</div><div class="kpi-sub">近 24 小时</div></div>
-                        <div class="kpi"><div class="kpi-label">独立 IP</div><div class="kpi-value" id="kpiIPs">-</div><div class="kpi-sub">近 24 小时</div></div>
+                        <div class="kpi"><div class="kpi-label" id="kpiCallsLabel">24h 请求</div><div class="kpi-value" id="kpiCalls">-</div><div class="kpi-sub" id="kpiCallsSub">累计 -</div></div>
+                        <div class="kpi"><div class="kpi-label">成功率</div><div class="kpi-value" id="kpiRate">-</div><div class="kpi-sub" id="kpiRateSub">近 24 小时</div></div>
+                        <div class="kpi"><div class="kpi-label">独立 IP</div><div class="kpi-value" id="kpiIPs">-</div><div class="kpi-sub" id="kpiIPsSub">近 24 小时</div></div>
                         <div class="kpi"><div class="kpi-label">有效 Cookie</div><div class="kpi-value" id="kpiCookies">-</div><div class="kpi-sub" id="kpiCookiesSub">有效 / 总数</div></div>
                         <div class="kpi"><div class="kpi-label">封禁 IP</div><div class="kpi-value" id="kpiBans">-</div><div class="kpi-sub">当前生效</div></div>
-                        <div class="kpi"><div class="kpi-label">来源站点</div><div class="kpi-value" id="kpiSources">-</div><div class="kpi-sub">近 24 小时</div></div>
+                        <div class="kpi"><div class="kpi-label">来源站点</div><div class="kpi-value" id="kpiSources">-</div><div class="kpi-sub" id="kpiSourcesSub">近 24 小时</div></div>
                     </div>
 
                     <div class="board-grid">
                         <section class="card">
                             <div class="card-header">
-                                <span class="card-title">近 24 小时请求</span>
-                                <button class="btn btn-default btn-sm" onclick="loadDashboard()">刷新</button>
+                                <span class="card-title" id="boardTrendTitle">近 24 小时请求趋势</span>
                             </div>
-                            <div class="bars" id="boardBars"></div>
-                            <div class="bars-axis" id="boardAxis"></div>
+                            <div class="line-chart" id="boardLineChart"></div>
                             <p class="chart-legend">
+                                <span class="legend-item"><i class="legend-swatch legend-total"></i>总请求</span>
                                 <span class="legend-item"><i class="legend-swatch legend-ok"></i>成功</span>
                                 <span class="legend-item"><i class="legend-swatch legend-err"></i>失败</span>
-                                <span class="legend-note">每根柱子代表一小时，悬停可见明细</span>
+                                <span class="legend-note" id="boardLineLegendNote">每个点代表一小时，悬停可见明细</span>
                             </p>
+                            <p class="chart-note" id="boardLineNote"></p>
                         </section>
                         <section class="card">
-                            <div class="card-header"><span class="card-title">请求类型</span></div>
-                            <div class="rows" id="boardTypes"></div>
+                            <div class="card-header"><span class="card-title">请求类型占比</span></div>
+                            <div class="donut-wrap" id="boardDonut"></div>
                         </section>
                     </div>
 
@@ -2133,14 +2465,21 @@ const getAdminHtml = (options = {}) => {
                                     <option value="168">近 7 天</option>
                                     <option value="720">近 30 天</option>
                                 </select>
+                                <select id="refererLimit" class="filter-input" style="min-width:110px;" onchange="loadReferers()">
+                                    <option value="10">显示 10 个</option>
+                                    <option value="30" selected>显示 30 个</option>
+                                    <option value="100">显示 100 个</option>
+                                    <option value="200">显示 200 个</option>
+                                </select>
                                 <button class="btn btn-default btn-sm" onclick="loadReferers()">刷新</button>
                             </div>
                         </div>
                         <p class="user-info-tooltip" style="margin-bottom:12px;">
                             按请求头 Referer 归并来源站点；「直接访问」表示没有 Referer（播放器、服务端调用或隐私模式）。
+                            点击任意来源行打开详情弹窗：平台 / 类型 / 地区 / Host 分布和 Top IP。
                         </p>
                         <div class="table-container">
-                            <table class="table table-sm">
+                            <table class="table table-sm table-referers">
                                 <thead>
                                     <tr><th>来源站点</th><th>请求数</th><th>占比</th><th>独立 IP</th><th>主要平台</th><th>主要地区</th><th>最近访问</th></tr>
                                 </thead>
@@ -2149,7 +2488,8 @@ const getAdminHtml = (options = {}) => {
                                 </tbody>
                             </table>
                         </div>
-                        <p class="user-info-tooltip" id="refererCountries" style="margin-top:10px;"></p>
+                        <p class="user-info-tooltip" id="refererSummary" style="margin-top:10px;"></p>
+                        <p class="user-info-tooltip" id="refererCountries" style="margin-top:6px;"></p>
                     </div>
                     <div class="card">
                         <div class="card-header"><span class="card-title">筛选</span></div>
@@ -2165,6 +2505,10 @@ const getAdminHtml = (options = {}) => {
                             <div class="form-group" style="min-width:120px;">
                                 <label>IP 地址</label>
                                 <input type="text" id="apiLogIP" placeholder="模糊搜索">
+                            </div>
+                            <div class="form-group" style="min-width:150px;">
+                                <label>来源站点</label>
+                                <input type="text" id="apiLogReferer" placeholder="域名 / direct">
                             </div>
                             <div class="form-group" style="min-width:100px;">
                                 <label>平台</label>
@@ -2206,20 +2550,19 @@ const getAdminHtml = (options = {}) => {
                     </div>
                     <div class="card">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-                            <span style="color:var(--text-secondary);font-size:13px;">共 <b id="apiLogTotalCount">0</b> 条记录，第 <b id="apiLogCurrentPage">1</b>/<b id="apiLogTotalPages">1</b> 页</span>
-                            <div style="display:flex;gap:8px;">
+                            <span style="color:var(--text-secondary);font-size:13px;" id="apiLogCountText">共 <b id="apiLogTotalCount">0</b> <span id="apiLogCountUnit">条记录</span>，第 <b id="apiLogCurrentPage">1</b>/<b id="apiLogTotalPages">1</b> 页</span>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <label class="checkbox-label" style="margin:0;font-size:13px;white-space:nowrap;">
+                                    <input type="checkbox" id="apiLogGroupByIp" checked onchange="loadApiLogs(1)"> 按 IP 折叠
+                                </label>
                                 <button class="btn btn-default" onclick="exportApiLogs()">${icon('download')} 导出 CSV</button>
                                 <button class="btn btn-danger" onclick="clearApiLogs()">${icon('trash')} 清空日志</button>
                             </div>
                         </div>
                         <div class="table-container">
                             <table class="table table-api-logs">
-                                <colgroup>
-                                    <col style="width:170px;"><col style="width:120px;"><col style="width:75px;">
-                                    <col style="width:200px;"><col style="width:125px;"><col style="width:65px;">
-                                    <col style="width:65px;"><col style="width:65px;"><col style="width:220px;">
-                                </colgroup>
-                                <thead><tr><th>时间</th><th>IP</th><th>平台</th><th>类型</th><th>请求 ID</th><th>状态码</th><th>状态</th><th>耗时</th><th>歌曲信息</th></tr></thead>
+                                <colgroup id="apiLogsCols"></colgroup>
+                                <thead id="apiLogsHead"></thead>
                                 <tbody id="apiLogsList"></tbody>
                             </table>
                         </div>
@@ -2555,17 +2898,15 @@ const getAdminHtml = (options = {}) => {
                     <div class="settings-panel" id="settingsPanelIntegrations" role="tabpanel" aria-labelledby="settingsTabIntegrations" data-settings-panel="Integrations">
                     <div class="settings-grid">
                         <div class="card settings-section" id="geoSection">
-                            <h4>${icon('radio')} IP 归属地接口</h4>
+                            <h4>${icon('radio')} IP 归属地通道</h4>
                             <form id="geoForm">
                                 <div class="form-group">
-                                    <label class="checkbox-label"><input type="checkbox" id="geoEnabled" checked> 启用 ShowAPI 在线查询</label>
-                                    <small>关闭后仅使用离线国家库；在线查询只补省/市，不阻塞 /api 响应。</small>
+                                    <label class="checkbox-label"><input type="checkbox" id="geoEnabled" checked> 启用在线归属地查询</label>
+                                    <small>关闭后仅使用离线国家库；在线查询只补省/市/运营商，不阻塞 /api 响应。</small>
                                 </div>
-                                <div class="form-group">
-                                    <label>ShowAPI appKey</label>
-                                    <input type="password" id="geoApiKey" placeholder="填写 ShowAPI 控制台的 appKey" autocomplete="new-password">
-                                    <small id="geoKeyHint">未配置密钥。重复 IP 只查询一次并缓存在本地。</small>
-                                    <small style="display:block;margin-top:6px;">获取地址：<a href="https://www.showapi.com/console#/myApp" target="_blank" rel="noopener">ShowAPI 控制台 → 我的应用</a>；需为应用开通「全球IP地址查询」。</small>
+                                <div class="form-section-title">查询通道（按顺序尝试，失败自动切换下一个）</div>
+                                <div class="geo-provider-list" id="geoProviderList">
+                                    <div class="geo-provider-note">正在读取通道配置…</div>
                                 </div>
                                 <div class="form-group">
                                     <label>测试 IP</label>
@@ -2573,13 +2914,14 @@ const getAdminHtml = (options = {}) => {
                                         <input type="text" id="geoTestIp" placeholder="留空则使用当前访问 IP">
                                         <button type="button" class="btn btn-default btn-sm" onclick="fillMyIp()">获取我的 IP</button>
                                     </div>
-                                    <small>默认使用当前访问后台的公网 IP（优先 X-Forwarded-For），也可以手动填写；支持 IPv4 / IPv6，IPv6 走 ipwho.is 备用接口。</small>
+                                    <small>默认使用当前访问后台的公网 IP（优先 X-Forwarded-For），也可以手动填写；支持 IPv4 / IPv6。</small>
                                 </div>
                                 <div class="geo-result" id="geoTestResult" style="display:none;"></div>
+                                <div class="geo-test-results" id="geoTestResults"></div>
                                 <p class="user-info-tooltip" id="geoTestStatus" style="margin:6px 0 0;"></p>
                                 <div class="form-row" style="margin-top:12px;">
-                                    <button type="submit" class="btn btn-primary">保存</button>
-                                    <button type="button" class="btn btn-default" onclick="testGeoApi()">测试查询</button>
+                                    <button type="submit" class="btn btn-primary">保存通道配置</button>
+                                    <button type="button" class="btn btn-default" onclick="testGeoApi()">测试全部启用通道</button>
                                     <button type="button" class="btn btn-default" onclick="clearGeoCacheConfirm()">清空缓存</button>
                                 </div>
                                 <p class="user-info-tooltip" id="geoCacheInfo" style="margin-top:10px;">本地缓存 0 个 IP</p>
@@ -2600,8 +2942,8 @@ const getAdminHtml = (options = {}) => {
                                 </div>
                                 <div class="form-group">
                                     <label>缓存有效期（小时）</label>
-                                    <input type="number" id="loginBgTtlHours" min="1" max="168" step="1" value="6" required>
-                                    <small>到期后自动换一张；期间所有访问共用同一张，建议 6~24 小时。</small>
+                                    <input type="number" id="loginBgTtlHours" min="0" max="168" step="1" value="6" required>
+                                    <small>到期后自动换一张；期间所有访问共用同一张，建议 6~24 小时。填 0 表示永久缓存、不自动刷新。</small>
                                 </div>
                                 <div class="login-bg-preview is-empty" id="loginBgPreviewWrap">
                                     <img id="loginBgPreview" alt="登录页背景预览"${loginBgPreviewSrc} onload="this.parentElement.classList.remove('is-empty')" onerror="this.parentElement.classList.add('is-empty')">
@@ -2653,6 +2995,16 @@ const getAdminHtml = (options = {}) => {
                                 <div class="cache-stat"><span>写入 / 淘汰</span><b id="cacheStatSets">-</b></div>
                                 <div class="cache-stat"><span>跳过（超大）</span><b id="cacheStatSkipped">-</b></div>
                                 <div class="cache-stat"><span>状态</span><b id="cacheStatEnabled">-</b></div>
+                            </div>
+                            <div class="cache-chart-grid">
+                                <div class="cache-chart-card">
+                                    <div class="cache-chart-title">命中率</div>
+                                    <div class="cache-donut" id="cacheHitDonut"></div>
+                                </div>
+                                <div class="cache-chart-card">
+                                    <div class="cache-chart-title">分类型 TTL</div>
+                                    <div class="cache-ttl-bars" id="cacheTtlBars"></div>
+                                </div>
                             </div>
                             <p class="user-info-tooltip" id="cacheStatsInfo" style="margin:8px 0 12px;">最近读取的缓存统计</p>
                             <button type="button" class="btn btn-default" onclick="loadCacheConfig()">刷新统计</button>
@@ -2906,6 +3258,16 @@ const getAdminHtml = (options = {}) => {
         </div>
     </div>
 
+    <div class="modal" id="refererModal">
+        <div class="modal-content" style="max-width:980px;">
+            <div class="modal-header">
+                <h3 id="refererModalTitle">来源详情</h3>
+                <button class="modal-close" onclick="closeModal('refererModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="refererModalBody"></div>
+        </div>
+    </div>
+
     <script>
         let authToken = localStorage.getItem('authToken');
         let authUsername = localStorage.getItem('authUsername');
@@ -2943,7 +3305,8 @@ const getAdminHtml = (options = {}) => {
         const showToast = (message, type = 'success') => {
             const toast = document.createElement('div');
             toast.className = 'toast toast-' + type;
-            toast.innerHTML = (type === 'success' ? '${icon('check')} ' : '${icon('xmark')} ') + message;
+            toast.innerHTML = '<span class="toast-icon">' + (type === 'success' ? '${icon('check')}' : '${icon('xmark')}') + '</span>' +
+                '<span class="toast-text">' + message + '</span>';
             document.body.appendChild(toast);
             setTimeout(() => {
                 toast.style.opacity = '0';
@@ -2956,6 +3319,15 @@ const getAdminHtml = (options = {}) => {
         const formatDate = (timestamp) => {
             if (!timestamp) return '-';
             return new Date(timestamp).toLocaleString('zh-CN');
+        };
+
+        /** 转成 <input type="datetime-local"> 需要的本地时间字符串 */
+        const toDateTimeLocal = (timestamp) => {
+            const date = new Date(timestamp);
+            if (Number.isNaN(date.getTime())) return '';
+            const pad = (value) => String(value).padStart(2, '0');
+            return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) +
+                'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
         };
 
         const getPlatformName = (platform) => {
@@ -3018,6 +3390,138 @@ const getAdminHtml = (options = {}) => {
             await loadGeoConfig();
         };
 
+        const GEO_SOURCE_LABELS = { showapi: 'ShowAPI', ipwhois: 'ipwho.is', ipapi: 'ipapi.co', ipsb: 'ip.sb' };
+        const geoSourceLabel = (source) => GEO_SOURCE_LABELS[source] || source || '';
+
+        const renumberGeoProviders = () => {
+            document.querySelectorAll('#geoProviderList .geo-provider-row').forEach((row, index) => {
+                const badge = row.querySelector('.provider-order');
+                if (badge) badge.textContent = index + 1;
+            });
+        };
+
+        const renderGeoProviderList = (providers) => {
+            const list = document.getElementById('geoProviderList');
+            if (!list) return;
+            const ordered = [...(providers || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+            if (!ordered.length) {
+                list.innerHTML = '<div class="geo-provider-note">没有可用的通道定义。</div>';
+                return;
+            }
+            list.innerHTML = ordered.map((p, index) => {
+                const ipVersions = [
+                    p.supportsIPv4 !== false ? 'IPv4' : '',
+                    p.supportsIPv6 ? 'IPv6' : '',
+                ].filter(Boolean).join(' / ');
+                const badges = [
+                    ipVersions ? '<span class="badge badge-info">' + escapeHtml(ipVersions) + '</span>' : '',
+                    p.needsKey
+                        ? (p.hasKey ? '<span class="badge badge-info">密钥 ' + escapeHtml(p.keyPreview) + '</span>' : '<span class="badge badge-error">缺少密钥</span>')
+                        : '<span class="badge badge-info">免密钥</span>',
+                ].join('');
+                const keyInput = p.needsKey
+                    ? '<input type="password" class="geo-provider-key" style="display:none;" placeholder="' +
+                        (p.hasKey ? '已配置密钥，留空保持不变' : '填写密钥') + '" autocomplete="new-password">'
+                    : '';
+                const editKeyBtn = p.needsKey
+                    ? '<button type="button" class="btn btn-default" data-geo-action="edit-key" data-has-key="' + (p.hasKey ? '1' : '0') + '" data-provider="' + escapeHtml(p.id) + '">' +
+                        (p.hasKey ? '编辑密钥' : '填写密钥') + '</button>'
+                    : '';
+                const clearBtn = p.needsKey && p.hasKey
+                    ? '<button type="button" class="btn btn-default" onclick="toggleGeoKeyClear(this)">清除密钥</button>'
+                    : '';
+                return '<div class="geo-provider-row' + (p.enabled ? '' : ' is-disabled') + '" data-provider="' + escapeHtml(p.id) + '">' +
+                    '<div class="geo-provider-head">' +
+                        '<span class="provider-order">' + (index + 1) + '</span>' +
+                        '<label class="checkbox-label"><input type="checkbox" class="geo-provider-enabled" ' + (p.enabled ? 'checked' : '') + '> <b>' + escapeHtml(p.label) + '</b></label>' +
+                        badges +
+                        '<a class="geo-provider-doc" href="' + escapeHtml(p.docsUrl || '#') + '" target="_blank" rel="noopener">' + escapeHtml(p.docsLabel || '文档') + '</a>' +
+                    '</div>' +
+                    '<div class="geo-provider-note">' + escapeHtml(p.note || '') + '</div>' +
+                    '<div class="geo-provider-actions">' +
+                        keyInput +
+                        '<span class="geo-provider-buttons">' +
+                            editKeyBtn +
+                            clearBtn +
+                            '<button type="button" class="btn btn-default" data-geo-action="up" data-provider="' + escapeHtml(p.id) + '">上移</button>' +
+                            '<button type="button" class="btn btn-default" data-geo-action="down" data-provider="' + escapeHtml(p.id) + '">下移</button>' +
+                            '<button type="button" class="btn btn-default" data-geo-action="test" data-provider="' + escapeHtml(p.id) + '">测试通道</button>' +
+                        '</span>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        };
+
+        const collectGeoProviders = () => Array.from(document.querySelectorAll('#geoProviderList .geo-provider-row')).map((row, index) => {
+            const item = {
+                id: row.dataset.provider,
+                enabled: row.querySelector('.geo-provider-enabled')?.checked === true,
+                order: index * 10,
+            };
+            const keyInput = row.querySelector('.geo-provider-key');
+            if (row.dataset.clearKey === '1') item.clearKey = true;
+            else if (keyInput && !keyInput.disabled && keyInput.value.trim()) item.key = keyInput.value.trim();
+            return item;
+        });
+
+        const moveGeoProvider = (id, delta) => {
+            const row = document.querySelector('#geoProviderList .geo-provider-row[data-provider="' + id + '"]');
+            if (!row) return;
+            const sibling = delta < 0 ? row.previousElementSibling : row.nextElementSibling;
+            if (!sibling || !sibling.classList.contains('geo-provider-row')) return;
+            if (delta < 0) row.parentElement.insertBefore(row, sibling);
+            else row.parentElement.insertBefore(sibling, row);
+            renumberGeoProviders();
+        };
+
+        const toggleGeoKeyClear = (btn) => {
+            const row = btn.closest('.geo-provider-row');
+            if (!row) return;
+            const clearing = row.dataset.clearKey === '1';
+            row.dataset.clearKey = clearing ? '' : '1';
+            const input = row.querySelector('.geo-provider-key');
+            if (input) {
+                input.disabled = !clearing;
+                if (!clearing) input.value = '';
+            }
+            btn.textContent = clearing ? '清除密钥' : '撤销清除';
+        };
+
+        const toggleGeoKeyEditor = (btn) => {
+            const row = btn.closest('.geo-provider-row');
+            const input = row?.querySelector('.geo-provider-key');
+            if (!input) return;
+            const opening = input.style.display === 'none';
+            input.style.display = opening ? '' : 'none';
+            btn.textContent = opening ? '收起密钥' : (btn.dataset.hasKey === '1' ? '编辑密钥' : '填写密钥');
+            if (opening) {
+                input.disabled = false;
+                if (row.dataset.clearKey === '1') {
+                    row.dataset.clearKey = '';
+                    const clearBtn = row.querySelector('button[onclick*="toggleGeoKeyClear"]');
+                    if (clearBtn) clearBtn.textContent = '清除密钥';
+                }
+                input.focus();
+            }
+        };
+
+        const geoProviderList = document.getElementById('geoProviderList');
+        geoProviderList.addEventListener('change', (event) => {
+            const input = event.target.closest('.geo-provider-enabled');
+            if (!input) return;
+            const row = input.closest('.geo-provider-row');
+            if (row) row.classList.toggle('is-disabled', !input.checked);
+        });
+        geoProviderList.addEventListener('click', (event) => {
+            const btn = event.target.closest('button[data-geo-action]');
+            if (!btn) return;
+            const id = btn.dataset.provider;
+            if (btn.dataset.geoAction === 'up') moveGeoProvider(id, -1);
+            else if (btn.dataset.geoAction === 'down') moveGeoProvider(id, 1);
+            else if (btn.dataset.geoAction === 'test') testGeoProvider(id);
+            else if (btn.dataset.geoAction === 'edit-key') toggleGeoKeyEditor(btn);
+        });
+
         const loadGeoConfig = async () => {
             try {
                 const res = await api('/admin/geo');
@@ -3025,21 +3529,20 @@ const getAdminHtml = (options = {}) => {
                 const d = res.data || {};
                 const enabled = document.getElementById('geoEnabled');
                 if (enabled) enabled.checked = d.enabled !== false;
-                const keyInput = document.getElementById('geoApiKey');
-                if (keyInput) {
-                    keyInput.value = '';
-                    keyInput.placeholder = d.hasKey
-                        ? '已配置 ' + d.keyPreview + '，留空保持不变'
-                        : '填写 ShowAPI 控制台的 appKey';
-                }
-                const hint = document.getElementById('geoKeyHint');
-                if (hint) {
-                    hint.textContent = d.hasKey
-                        ? '密钥已配置；重复 IP 只查询一次并缓存在本地。'
-                        : '未配置密钥；IPv4 仅使用离线国家库，IPv6 走 ipwho.is 备用接口。';
-                }
+                renderGeoProviderList(d.providers || []);
                 const cache = document.getElementById('geoCacheInfo');
-                if (cache) cache.textContent = '本地缓存 ' + (d.cacheSize || 0) + ' 个 IP，有效期 ' + (d.cacheTtlDays || 30) + ' 天';
+                if (cache) {
+                    const bySource = Object.entries(d.cacheBySource || {})
+                        .filter(([source]) => source && source !== 'unknown')
+                        .map(([source, count]) => geoSourceLabel(source) + ' ' + count)
+                        .join(' · ');
+                    cache.textContent = '本地缓存 ' + (d.cacheSize || 0) + ' 个 IP，有效期 ' + (d.cacheTtlDays || 30) + ' 天'
+                        + (bySource ? '；来源：' + bySource : '');
+                }
+                const resultsBox = document.getElementById('geoTestResults');
+                if (resultsBox) resultsBox.innerHTML = '';
+                const singleResult = document.getElementById('geoTestResult');
+                if (singleResult) singleResult.style.display = 'none';
                 const ipInput = document.getElementById('geoTestIp');
                 if (ipInput && !ipInput.value.trim()) fillMyIp(true);
             } catch (_) {}
@@ -3065,7 +3568,10 @@ const getAdminHtml = (options = {}) => {
             const cache = d?.cache;
             if (cache && cache.fetchedAt) {
                 const at = new Date(cache.fetchedAt).toLocaleString('zh-CN');
-                const suffix = cache.stale ? '，已过期（下次访问自动更换）' : '，刷新登录页不会换图';
+                const ttlHours = Number(d?.ttlHours);
+                const suffix = ttlHours === 0
+                    ? '，永久缓存（不会自动换图）'
+                    : cache.stale ? '，已过期（下次访问自动更换）' : '，刷新登录页不会换图';
                 info.textContent = '已缓存 1 张（' + formatLoginBgSize(cache.size) + '），抓取于 ' + at + suffix;
                 wrap.classList.remove('is-empty');
                 img.src = '/admin/login-bg?v=' + cache.fetchedAt;
@@ -3086,9 +3592,73 @@ const getAdminHtml = (options = {}) => {
                 const urlInput = document.getElementById('loginBgApiUrl');
                 if (urlInput) urlInput.value = d.apiUrl || '';
                 const ttlInput = document.getElementById('loginBgTtlHours');
-                if (ttlInput) ttlInput.value = d.ttlHours || 6;
+                if (ttlInput) {
+                    const ttl = Number(d.ttlHours);
+                    ttlInput.value = Number.isFinite(ttl) ? ttl : 6;
+                }
                 renderLoginBgPreview(d);
             } catch (_) {}
+        };
+
+        const renderCacheCharts = (d) => {
+            const stats = d?.stats || {};
+            const hits = Number(stats.hits) || 0;
+            const misses = Number(stats.misses) || 0;
+            const total = hits + misses;
+            const rate = total ? hits / total : 0;
+            const donut = document.getElementById('cacheHitDonut');
+            if (donut) {
+                if (!total) {
+                    donut.innerHTML = '<p class="user-info-tooltip">暂无命中/未命中记录</p>';
+                } else {
+                    const radius = 38;
+                    const circumference = 2 * Math.PI * radius;
+                    const hitArc = rate * circumference;
+                    const gap = 2.4;
+                    const hitLen = Math.max(0, hitArc - gap);
+                    const missLen = Math.max(0, circumference - hitArc - gap);
+                    const hitPct = (rate * 100).toFixed(1);
+                    const missPct = ((1 - rate) * 100).toFixed(1);
+                    donut.innerHTML = '<div class="cache-donut-flex">' +
+                        '<div class="cache-donut-figure"><svg viewBox="0 0 104 104" role="img" aria-label="缓存命中率">' +
+                            '<circle class="cache-donut-seg" cx="52" cy="52" r="' + radius + '" fill="none" stroke="#10b981" stroke-width="14" ' +
+                                'stroke-dasharray="' + hitLen.toFixed(2) + ' ' + (circumference - hitLen).toFixed(2) + '" ' +
+                                'stroke-dashoffset="0" transform="rotate(-90 52 52)" stroke-linecap="round"></circle>' +
+                            '<circle class="cache-donut-seg" style="animation-delay:80ms" cx="52" cy="52" r="' + radius + '" fill="none" stroke="#f59e0b" stroke-width="14" ' +
+                                'stroke-dasharray="' + missLen.toFixed(2) + ' ' + (circumference - missLen).toFixed(2) + '" ' +
+                                'stroke-dashoffset="' + (-hitArc).toFixed(2) + '" transform="rotate(-90 52 52)" stroke-linecap="round"></circle>' +
+                            '<g class="donut-center">' +
+                                '<text x="52" y="50" text-anchor="middle" style="fill:var(--text)" font-size="18" font-weight="700">' + hitPct + '%</text>' +
+                                '<text x="52" y="66" text-anchor="middle" style="fill:var(--text-muted)" font-size="9">命中率</text>' +
+                            '</g>' +
+                        '</svg></div>' +
+                        '<div class="cache-donut-legend">' +
+                            '<div class="cache-donut-row"><i class="cache-donut-dot" style="background:#10b981"></i><span class="cache-donut-label">命中</span><span class="cache-donut-val">' + hits + ' · ' + hitPct + '%</span></div>' +
+                            '<div class="cache-donut-row"><i class="cache-donut-dot" style="background:#f59e0b"></i><span class="cache-donut-label">未命中</span><span class="cache-donut-val">' + misses + ' · ' + missPct + '%</span></div>' +
+                        '</div>' +
+                    '</div>';
+                }
+            }
+
+            const bars = document.getElementById('cacheTtlBars');
+            if (bars) {
+                const types = Array.isArray(d?.types) ? d.types : [];
+                const ttlByType = d?.ttlByType || {};
+                const values = types.map(type => Math.max(0, Number(ttlByType[type.key]) || 0));
+                const max = Math.max(1, ...values);
+                bars.innerHTML = types.length
+                    ? types.map((type, index) => {
+                        const minutes = values[index];
+                        const width = Math.max(2, Math.round((minutes / max) * 100));
+                        const label = type.label || type.key;
+                        return '<div class="cache-ttl-row">' +
+                            '<span class="cache-ttl-label" title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</span>' +
+                            '<span class="cache-ttl-track"><i class="cache-ttl-fill" style="width:' + width + '%;animation-delay:' + (index * 40) + 'ms"></i></span>' +
+                            '<span class="cache-ttl-val">' + minutes + ' 分钟</span>' +
+                        '</div>';
+                    }).join('')
+                    : '<p class="user-info-tooltip">暂无 TTL 配置</p>';
+            }
         };
 
         const renderCacheStats = (d) => {
@@ -3120,6 +3690,7 @@ const getAdminHtml = (options = {}) => {
                     envNote.textContent = '环境变量未覆盖；保存后以本页配置为准。';
                 }
             }
+            renderCacheCharts(d);
         };
 
         const loadCacheConfig = async () => {
@@ -3560,11 +4131,190 @@ const getAdminHtml = (options = {}) => {
             }
         });
 
+        const TYPE_LABELS = {
+            song: '歌曲',
+            url: '直链',
+            lrc: '歌词',
+            pic: '图片',
+            search: '搜索',
+            playlist: '歌单',
+            album: '专辑',
+            artist: '歌手',
+            invalid: '其他',
+        };
+        const typeLabel = (key) => TYPE_LABELS[key] || key || '其他';
+        const CHART_COLORS = ['#50A8D0', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#64748b', '#d946ef'];
+        const dashboardRangeLabel = (hours) => Number(hours) >= 720 ? '近 30 天' : Number(hours) >= 168 ? '近 7 天' : '近 24 小时';
+        const dashboardRangeShort = (hours) => Number(hours) >= 720 ? '30d' : Number(hours) >= 168 ? '7d' : '24h';
+        const pad2 = (value) => String(value).padStart(2, '0');
+
+        const formatChartTick = (timestamp, bucketMs) => {
+            const date = new Date(timestamp);
+            if (bucketMs >= 24 * 60 * 60 * 1000) return (date.getMonth() + 1) + '/' + date.getDate();
+            if (bucketMs >= 6 * 60 * 60 * 1000) return (date.getMonth() + 1) + '/' + date.getDate() + ' ' + pad2(date.getHours()) + '时';
+            return pad2(date.getHours()) + '时';
+        };
+
+        const formatChartPointLabel = (timestamp, bucketMs) => {
+            const date = new Date(timestamp);
+            if (bucketMs >= 24 * 60 * 60 * 1000) {
+                return date.getFullYear() + '-' + pad2(date.getMonth() + 1) + '-' + pad2(date.getDate());
+            }
+            if (bucketMs >= 6 * 60 * 60 * 1000) {
+                return (date.getMonth() + 1) + '-' + pad2(date.getDate()) + ' ' + pad2(date.getHours()) + ':00';
+            }
+            return pad2(date.getHours()) + ':00';
+        };
+
+        const niceChartMax = (value) => {
+            if (!Number.isFinite(value) || value <= 0) return 5;
+            const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+            const normalized = value / magnitude;
+            const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+            return Math.max(5, step * magnitude);
+        };
+
+        const renderBoardLineChart = (series, hours = 24) => {
+            const box = document.getElementById('boardLineChart');
+            const note = document.getElementById('boardLineNote');
+            if (!box) return;
+            const list = Array.isArray(series) ? series : [];
+            const rangeLabel = dashboardRangeLabel(hours);
+            if (!list.length || !list.some(item => item.total > 0)) {
+                box.innerHTML = '<p class="user-info-tooltip">' + rangeLabel + '暂无调用</p>';
+                if (note) note.textContent = '';
+                return;
+            }
+            const bucketMs = Number(list[0]?.bucketMs) || (Number(hours) <= 48 ? 60 * 60 * 1000 : Number(hours) <= 168 ? 6 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000);
+            const legendNote = document.getElementById('boardLineLegendNote');
+            if (legendNote) {
+                legendNote.textContent = bucketMs >= 24 * 60 * 60 * 1000
+                    ? '每个点代表一天，悬停可见明细'
+                    : bucketMs >= 6 * 60 * 60 * 1000
+                        ? '每个点代表 6 小时，悬停可见明细'
+                        : '每个点代表一小时，悬停可见明细';
+            }
+            const W = 720;
+            const H = 230;
+            const pad = { l: 36, r: 10, t: 12, b: 26 };
+            const innerW = W - pad.l - pad.r;
+            const innerH = H - pad.t - pad.b;
+            const max = niceChartMax(Math.max(...list.map(item => item.total || 0)));
+            const x = (index) => pad.l + (list.length === 1 ? innerW / 2 : (innerW * index) / (list.length - 1));
+            const y = (value) => pad.t + innerH - (Math.max(0, value) / max) * innerH;
+            const line = (key) => list.map((item, index) =>
+                (index === 0 ? 'M' : 'L') + x(index).toFixed(1) + ',' + y(item[key] || 0).toFixed(1)
+            ).join(' ');
+            const totalPoints = list.map((item, index) => x(index).toFixed(1) + ',' + y(item.total || 0).toFixed(1));
+            const area = 'M' + totalPoints[0] + ' L' + totalPoints.slice(1).join(' L') +
+                ' L' + x(list.length - 1).toFixed(1) + ',' + (pad.t + innerH).toFixed(1) +
+                ' L' + x(0).toFixed(1) + ',' + (pad.t + innerH).toFixed(1) + ' Z';
+
+            const grid = Array.from({ length: 5 }, (_, index) => {
+                const value = max * (1 - index / 4);
+                const gy = y(value);
+                return '<line x1="' + pad.l + '" y1="' + gy.toFixed(1) + '" x2="' + (W - pad.r) + '" y2="' + gy.toFixed(1) +
+                    '" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="' + (index === 4 ? '0' : '3 4') + '"></line>' +
+                    '<text class="chart-label" x="' + (pad.l - 7) + '" y="' + (gy + 3).toFixed(1) + '" text-anchor="end" fill="#94a3b8" font-size="9">' +
+                    Math.round(value) + '</text>';
+            }).join('');
+
+            const tickEvery = Math.max(1, Math.ceil(list.length / 6));
+            const ticks = list.map((item, index) => index).filter(index => index % tickEvery === 0);
+            if (!ticks.includes(list.length - 1)) ticks.push(list.length - 1);
+            const xLabels = ticks.map((index) => {
+                const anchor = index === 0 ? 'start' : index === list.length - 1 ? 'end' : 'middle';
+                return '<text class="chart-label" x="' + x(index).toFixed(1) + '" y="' + (H - 6).toFixed(1) + '" text-anchor="' + anchor +
+                    '" fill="#94a3b8" font-size="9">' + formatChartTick(list[index].t, bucketMs) + '</text>';
+            }).join('');
+
+            const dots = list.map((item, index) => {
+                const tip = formatChartPointLabel(item.t, bucketMs) + ' · 共 ' + item.total + ' 次 · 成功 ' + item.success + ' · 失败 ' + item.error;
+                return '<circle class="chart-dot" cx="' + x(index).toFixed(1) + '" cy="' + y(item.total || 0).toFixed(1) +
+                    '" r="2.6" fill="#fff" stroke="#3D93B8" stroke-width="2"><title>' + tip + '</title></circle>';
+            }).join('');
+
+            const step = innerW / Math.max(1, list.length - 1);
+            const hitAreas = list.map((item, index) => {
+                const left = Math.max(pad.l, x(index) - step / 2);
+                const right = Math.min(W - pad.r, x(index) + step / 2);
+                const tip = formatChartPointLabel(item.t, bucketMs) + ' · 共 ' + item.total + ' 次 · 成功 ' + item.success + ' · 失败 ' + item.error;
+                return '<rect x="' + left.toFixed(1) + '" y="' + pad.t + '" width="' + (right - left).toFixed(1) +
+                    '" height="' + innerH + '" fill="transparent" pointer-events="all"><title>' + tip + '</title></rect>';
+            }).join('');
+
+            box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="近 24 小时请求趋势">' +
+                '<defs><linearGradient id="boardLineArea" x1="0" y1="0" x2="0" y2="1">' +
+                    '<stop offset="0%" stop-color="#50A8D0" stop-opacity="0.22"></stop>' +
+                    '<stop offset="100%" stop-color="#50A8D0" stop-opacity="0.01"></stop>' +
+                '</linearGradient></defs>' +
+                grid +
+                '<path class="chart-area" d="' + area + '" fill="url(#boardLineArea)"></path>' +
+                '<path class="chart-line chart-line-success" pathLength="1" d="' + line('success') + '" fill="none" stroke="#10b981" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>' +
+                '<path class="chart-line chart-line-error" pathLength="1" d="' + line('error') + '" fill="none" stroke="#ef4444" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>' +
+                '<path class="chart-line chart-line-total" pathLength="1" d="' + line('total') + '" fill="none" stroke="#3D93B8" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></path>' +
+                dots + hitAreas + xLabels +
+                '</svg>';
+
+            if (note) {
+                const peak = list.reduce((best, item) => (item.total > best.total ? item : best), list[0]);
+                const sum = list.reduce((acc, item) => acc + (item.total || 0), 0);
+                note.textContent = '峰值 ' + formatChartPointLabel(peak.t, bucketMs) + ' · ' + peak.total + ' 次 · 合计 ' + sum + ' 次';
+            }
+        };
+
+        const renderBoardDonut = (byType, hours = 24) => {
+            const box = document.getElementById('boardDonut');
+            if (!box) return;
+            const entries = Object.entries(byType || {})
+                .map(([key, count]) => ({ key, label: typeLabel(key), count: Number(count) || 0 }))
+                .filter(item => item.count > 0)
+                .sort((a, b) => b.count - a.count);
+            const total = entries.reduce((sum, item) => sum + item.count, 0);
+            if (!total) {
+                box.innerHTML = '<p class="user-info-tooltip">近 24 小时暂无调用</p>';
+                return;
+            }
+            const radius = 54;
+            const circumference = 2 * Math.PI * radius;
+            let cursor = 0;
+            const segments = entries.map((item, index) => {
+                const fraction = item.count / total;
+                const arc = fraction * circumference;
+                const gap = entries.length > 1 ? 2.4 : 0;
+                const length = Math.max(0.8, arc - gap);
+                const color = CHART_COLORS[index % CHART_COLORS.length];
+                const segment = '<circle class="donut-seg" style="animation-delay:' + (index * 60) + 'ms" cx="70" cy="70" r="' + radius + '" fill="none" stroke="' + color + '" stroke-width="18" ' +
+                    'stroke-dasharray="' + length.toFixed(2) + ' ' + (circumference - length).toFixed(2) + '" ' +
+                    'stroke-dashoffset="' + (-cursor).toFixed(2) + '" transform="rotate(-90 70 70)" stroke-linecap="round">' +
+                    '<title>' + escapeHtml(item.label) + ' · ' + item.count + ' 次 · ' + (fraction * 100).toFixed(1) + '%</title></circle>';
+                cursor += arc;
+                return segment;
+            }).join('');
+            const legend = entries.map((item, index) => {
+                const color = CHART_COLORS[index % CHART_COLORS.length];
+                const pct = ((item.count / total) * 100).toFixed(1);
+                return '<div class="donut-legend-row" style="animation-delay:' + (120 + index * 55) + 'ms">' +
+                    '<i class="donut-dot" style="background:' + color + '"></i>' +
+                    '<span class="donut-label">' + escapeHtml(item.label) + '</span>' +
+                    '<span class="donut-val">' + item.count + ' · ' + pct + '%</span></div>';
+            }).join('');
+            box.innerHTML = '<div class="donut-flex"><div class="donut-figure">' +
+                '<svg viewBox="0 0 140 140" role="img" aria-label="请求类型占比">' + segments +
+                    '<g class="donut-center">' +
+                        '<text x="70" y="66" text-anchor="middle" style="fill:var(--text)" font-size="22" font-weight="700">' + total + '</text>' +
+                        '<text x="70" y="84" text-anchor="middle" style="fill:var(--text-muted)" font-size="10">' + dashboardRangeShort(hours) + ' 次调用</text>' +
+                    '</g>' +
+                '</svg></div><div class="donut-legend">' + legend + '</div></div>';
+        };
+
         const loadDashboard = async () => {
+            const range = Number(document.getElementById('dashboardRange')?.value) || 24;
+            const rangeLabel = dashboardRangeLabel(range);
             const [statsRes, seriesRes, refsRes, cookiesRes, bansRes, logsRes] = await Promise.all([
-                api('/admin/api-logs/stats').catch(() => null),
-                api('/admin/api-logs/timeseries?hours=24').catch(() => null),
-                api('/admin/api-logs/referers?hours=24&limit=6').catch(() => null),
+                api('/admin/api-logs/stats?hours=' + encodeURIComponent(range)).catch(() => null),
+                api('/admin/api-logs/timeseries?hours=' + encodeURIComponent(range)).catch(() => null),
+                api('/admin/api-logs/referers?hours=' + encodeURIComponent(range) + '&limit=6').catch(() => null),
                 api('/admin/cookies').catch(() => null),
                 api('/admin/abuse/bans').catch(() => null),
                 api('/admin/logs?limit=6').catch(() => null)
@@ -3583,12 +4333,18 @@ const getAdminHtml = (options = {}) => {
             const emptyRow = (text) => '<p class="user-info-tooltip">' + escapeHtml(text) + '</p>';
 
             const stats = statsRes?.success ? statsRes.data : null;
-            const total = stats?.last24h || 0;
+            const total = stats?.rangeCount ?? stats?.last24h ?? 0;
             const success = stats?.byStatus?.success || 0;
+            setText('kpiCallsLabel', dashboardRangeShort(range) + ' 请求');
             setText('kpiCalls', total);
             setText('kpiCallsSub', '累计 ' + (stats?.total || 0));
             setText('kpiRate', total ? Math.round(success / total * 100) + '%' : '-');
-            setText('kpiIPs', stats?.uniqueIPs24h ?? '-');
+            setText('kpiRateSub', rangeLabel);
+            setText('kpiIPs', stats?.uniqueIPs ?? stats?.uniqueIPs24h ?? '-');
+            setText('kpiIPsSub', rangeLabel);
+            setText('kpiSourcesSub', rangeLabel);
+            setText('boardTrendTitle', rangeLabel + '请求趋势');
+            setText('dashboardRangeHint', range >= 720 ? '按天统计' : range >= 168 ? '每 6 小时一个点' : '按小时统计');
 
             const cookies = cookiesRes?.success ? cookiesRes.data : [];
             const valid = cookies.filter(c => c.isValid === true).length;
@@ -3598,37 +4354,10 @@ const getAdminHtml = (options = {}) => {
             const refs = refsRes?.success ? refsRes.data : null;
             setText('kpiSources', refs ? refs.uniqueHosts : '-');
 
-            // 24 小时柱状图：橙=成功，红=失败
-            const bars = document.getElementById('boardBars');
+            // 趋势折线图 + 请求类型饼图（跟随顶部数据范围）
             const series = seriesRes?.success ? seriesRes.data : [];
-            if (bars) {
-                const max = Math.max(1, ...series.map(item => item.total));
-                bars.innerHTML = series.map(item => {
-                    const height = Math.round((item.total / max) * 100);
-                    const errHeight = item.total ? Math.round((item.error / item.total) * height) : 0;
-                    const okHeight = height - errHeight;
-                    const hour = new Date(item.t).getHours();
-                    const title = hour + ':00 · ' + item.total + ' 次 · 失败 ' + item.error;
-                    return '<div class="bar" title="' + title + '">' +
-                        '<span class="ok" style="height:' + okHeight + '%"></span>' +
-                        '<span class="err" style="height:' + errHeight + '%"></span></div>';
-                }).join('');
-            }
-            const axis = document.getElementById('boardAxis');
-            if (axis) {
-                axis.innerHTML = series.map((item, index) => index % 4 === 0
-                    ? '<span>' + new Date(item.t).getHours() + '时</span>'
-                    : '<span></span>').join('');
-            }
-
-            const types = Object.entries(stats?.byType || {}).sort((a, b) => b[1] - a[1]);
-            const typeTotal = types.reduce((sum, entry) => sum + entry[1], 0) || 1;
-            const typeBox = document.getElementById('boardTypes');
-            if (typeBox) {
-                typeBox.innerHTML = types.length
-                    ? types.map(entry => barRow(entry[0] === 'invalid' ? '其他' : entry[0], entry[1], entry[1] / typeTotal)).join('')
-                    : emptyRow('近 24 小时暂无调用');
-            }
+            renderBoardLineChart(series, range);
+            renderBoardDonut(stats?.byType || {}, range);
 
             const sources = document.getElementById('boardSources');
             if (sources) {
@@ -3809,21 +4538,235 @@ const getAdminHtml = (options = {}) => {
         let apiLogCurrentPage = 1;
         let apiLogTotalPages = 1;
         let apiLogTotalCount = 0;
+        let apiLogTotalCalls = 0;
+        let apiLogGrouped = true;
+        let apiLogGeoPollTimer = null;
+        let apiLogActiveFilters = null;
+        const apiLogExpanded = new Set();
+        /** @type {Map<string, object>} 当前页分组摘要，用于详情里的归属地大标题 */
+        const apiLogGroupMeta = new Map();
+        /** @type {Map<string, {items:Array, page:number, total:number, totalPages:number, loading:boolean}>} */
+        const apiLogDetailCache = new Map();
 
         const getApiLogFilters = () => ({
             startTime: document.getElementById('apiLogStartTime').value ? new Date(document.getElementById('apiLogStartTime').value).getTime() : '',
             endTime: document.getElementById('apiLogEndTime').value ? new Date(document.getElementById('apiLogEndTime').value).getTime() : '',
             ip: document.getElementById('apiLogIP').value.trim(),
+            referer: document.getElementById('apiLogReferer').value.trim(),
             server: document.getElementById('apiLogServer').value,
             type: document.getElementById('apiLogType').value,
             status: document.getElementById('apiLogStatus').value,
             keyword: document.getElementById('apiLogKeyword').value.trim(),
         });
 
+        const apiLogFilterParams = (filters) => {
+            const params = new URLSearchParams();
+            if (filters.startTime) params.set('startTime', filters.startTime);
+            if (filters.endTime) params.set('endTime', filters.endTime);
+            if (filters.ip) params.set('ip', filters.ip);
+            if (filters.referer) params.set('referer', filters.referer);
+            if (filters.server) params.set('server', filters.server);
+            if (filters.type) params.set('type', filters.type);
+            if (filters.status) params.set('status', filters.status);
+            if (filters.keyword) params.set('keyword', filters.keyword);
+            return params;
+        };
+
+        const uniqueGeoParts = (values) => {
+            const parts = [];
+            for (const value of values) {
+                const text = String(value || '').trim();
+                if (text && !parts.includes(text)) parts.push(text);
+            }
+            return parts;
+        };
+
+        /** 归属地单元格：地区一行、运营商一行，右侧标出来源通道。large=true 时放大成标题。 */
+        const renderGeoCell = (item, options = {}) => {
+            const geo = item?.geo;
+            const location = geo
+                ? uniqueGeoParts([geo.country, geo.region, geo.city, geo.county]).join(' · ')
+                : (item?.country || '');
+            const isp = geo?.isp || '';
+            const source = geo?.providerLabel || geoSourceLabel(geo?.source);
+            if (!location && !isp) {
+                return '<span class="geo-pending">' + (item?.ip === 'unknown' ? '无 IP' : '待解析') + '</span>';
+            }
+            const title = [location, isp, source].filter(Boolean).join(' · ');
+            return '<span class="geo-cell' + (options.large ? ' geo-cell-lg' : '') + '" title="' + escapeHtml(title) + '">' +
+                '<span class="geo-main">' + escapeHtml(location || isp) +
+                    (source ? '<span class="geo-source">' + escapeHtml(source) + '</span>' : '') +
+                '</span>' +
+                (isp && location ? '<span class="geo-sub">' + escapeHtml(isp) + '</span>' : '') +
+            '</span>';
+        };
+
+        const songTextOf = (log) => {
+            if (!log) return '-';
+            if (log.songName) return log.songName + (log.songArtist ? ' - ' + log.songArtist : '');
+            return log.requestId ? 'ID ' + log.requestId : '-';
+        };
+
+        const refererTextOf = (host) => {
+            if (!host || host === 'direct') return '直接访问';
+            if (host === 'invalid') return '无效来源';
+            return host;
+        };
+
+        const renderApiLogGroupRow = (group) => {
+            const allCodes = (group.statusCodes || [])
+                .map(item => item.code + '×' + item.count)
+                .join(' · ');
+            const codes = (group.statusCodes || []).slice(0, 3)
+                .map(item => item.code + '×' + item.count)
+                .join(' · ');
+            const songText = songTextOf(group.latest);
+            const referer = refererTextOf(group.topReferer);
+            return '<tr class="api-log-group" data-ip="' + escapeHtml(group.ip) + '">' +
+                '<td><span class="api-log-caret">▶</span>' + escapeHtml(formatDate(group.lastSeen)) +
+                    '<div class="api-log-codes" title="首次调用 ' + escapeHtml(formatDate(group.firstSeen)) + '">首次 ' + escapeHtml(formatDate(group.firstSeen)) + '</div></td>' +
+                '<td><div class="cell-clip" title="' + escapeHtml(group.ip) + '"><b>' + escapeHtml(group.ip) + '</b></div></td>' +
+                '<td>' + renderGeoCell(group, { large: true }) + '</td>' +
+                '<td><span class="api-log-count">' + group.count + '</span><small> 次</small>' +
+                    '<div class="api-log-codes">成功 ' + group.successCount + ' · 失败 ' + group.errorCount + '</div></td>' +
+                '<td><div class="api-log-codes" title="' + escapeHtml(allCodes) + '">' + escapeHtml(codes || '-') + '</div></td>' +
+                '<td>' + escapeHtml((group.avgDurationMs || 0) + 'ms') + '</td>' +
+                '<td><div class="cell-clip cell-clip-song" title="' + escapeHtml(songText) + '">' + escapeHtml(songText) + '</div>' +
+                    '<div class="api-log-codes">' + escapeHtml(referer) + '</div></td>' +
+                '</tr>' +
+                '<tr class="api-log-detail-row" data-detail-for="' + escapeHtml(group.ip) + '" style="display:none;">' +
+                    '<td colspan="7"><div class="api-log-detail">展开后加载调用详情…</div></td>' +
+                '</tr>';
+        };
+
+        const renderApiLogDetailHtml = (ip) => {
+            const state = apiLogDetailCache.get(ip);
+            const meta = apiLogGroupMeta.get(ip) || {};
+            const metaGeo = meta.geo || null;
+            const geoLocation = metaGeo
+                ? uniqueGeoParts([metaGeo.country, metaGeo.region, metaGeo.city, metaGeo.county]).join(' · ')
+                : (meta.country || '');
+            const geoIsp = metaGeo?.isp || '';
+            const geoSource = metaGeo?.providerLabel || geoSourceLabel(metaGeo?.source);
+            const geoMeta = uniqueGeoParts([geoIsp, geoSource]).join(' · ');
+            const geoBlock = (geoLocation || geoIsp)
+                ? '<div class="api-log-detail-geo">' +
+                    '<div class="api-log-detail-geo-title">' + escapeHtml(geoLocation || geoIsp) + '</div>' +
+                    (geoMeta ? '<div class="api-log-detail-geo-meta">' + escapeHtml(geoMeta) + '</div>' : '') +
+                  '</div>'
+                : '';
+            if (!state || state.loading) return geoBlock + '<div class="api-log-detail-head">正在加载 ' + escapeHtml(ip) + ' 的调用详情…</div>';
+            if (state.error) return geoBlock + '<div class="api-log-detail-head" style="color:var(--danger);">加载失败：' + escapeHtml(state.error) + '</div>';
+            if (!state.items.length) return geoBlock + '<div class="api-log-detail-head">这个来源没有可显示的调用记录。</div>';
+            const rows = state.items.map((log) => {
+                const statusBadge = log.status === 'success'
+                    ? '<span class="badge badge-success">成功</span>'
+                    : '<span class="badge badge-error">失败</span>';
+                return '<tr>' +
+                    '<td>' + escapeHtml(formatDate(log.timestamp)) + '</td>' +
+                    '<td>' + escapeHtml(log.server || '-') + '</td>' +
+                    '<td><div class="cell-clip cell-clip-type" title="' + escapeHtml(log.type || '-') + '">' + escapeHtml(log.type || '-') + '</div></td>' +
+                    '<td><div class="cell-clip cell-clip-id" title="' + escapeHtml(log.requestId || '-') + '">' + escapeHtml(log.requestId || '-') + '</div></td>' +
+                    '<td>' + escapeHtml(String(log.statusCode ?? '-')) + '</td>' +
+                    '<td>' + statusBadge + '</td>' +
+                    '<td>' + escapeHtml((log.durationMs || 0) + 'ms') + '</td>' +
+                    '<td><div class="cell-clip cell-clip-song" title="' + escapeHtml(songTextOf(log)) + '">' + escapeHtml(songTextOf(log)) + '</div></td>' +
+                    '</tr>';
+            }).join('');
+            const more = state.page < state.totalPages
+                ? '<button type="button" class="btn btn-default btn-sm" data-more-ip="' + escapeHtml(ip) + '">加载更多（已显示 ' + state.items.length + ' / ' + state.total + '）</button>'
+                : '';
+            return geoBlock + '<div class="api-log-detail-head"><span>' + escapeHtml(ip) + ' · 共 ' + state.total + ' 次调用' +
+                (state.items.length < state.total ? '，已展开最近 ' + state.items.length + ' 次' : '') + '</span>' + more + '</div>' +
+                '<div class="table-container"><table class="table table-sm table-api-log-detail">' +
+                    '<thead><tr><th>时间</th><th>平台</th><th>类型</th><th>请求 ID</th><th>状态码</th><th>状态</th><th>耗时</th><th>歌曲信息</th></tr></thead>' +
+                    '<tbody>' + rows + '</tbody>' +
+                '</table></div>';
+        };
+
+        const findApiLogRow = (ip) => {
+            return Array.from(document.querySelectorAll('#apiLogsList .api-log-group'))
+                .find((row) => row.dataset.ip === ip) || null;
+        };
+
+        const paintApiLogDetail = (ip) => {
+            const groupRow = findApiLogRow(ip);
+            if (!groupRow) return;
+            const detailRow = groupRow.nextElementSibling;
+            if (!detailRow || !detailRow.classList.contains('api-log-detail-row')) return;
+            detailRow.querySelector('.api-log-detail').innerHTML = renderApiLogDetailHtml(ip);
+        };
+
+        const fetchApiLogDetail = async (ip, page = 1, append = false) => {
+            const state = apiLogDetailCache.get(ip) || { items: [], page: 0, total: 0, totalPages: 1, loading: false };
+            if (state.loading) return;
+            state.loading = true;
+            apiLogDetailCache.set(ip, state);
+            paintApiLogDetail(ip);
+            const params = apiLogFilterParams(apiLogActiveFilters || getApiLogFilters());
+            params.set('group', 'none');
+            params.set('ipExact', ip);
+            params.set('page', page);
+            params.set('pageSize', '20');
+            try {
+                const res = await api('/admin/api-logs?' + params.toString());
+                if (!res?.success) throw new Error(res?.error || '加载失败');
+                const incoming = res.items || [];
+                state.items = append ? state.items.concat(incoming) : incoming;
+                state.page = page;
+                state.total = res.total || 0;
+                state.totalPages = res.totalPages || 1;
+            } catch (e) {
+                state.items = [];
+                state.total = 0;
+                state.totalPages = 1;
+                state.error = e?.message || '加载失败';
+            } finally {
+                state.loading = false;
+                apiLogDetailCache.set(ip, state);
+                paintApiLogDetail(ip);
+            }
+        };
+
+        const toggleApiLogGroup = (ip) => {
+            const groupRow = findApiLogRow(ip);
+            if (!groupRow) return;
+            const detailRow = groupRow.nextElementSibling;
+            if (!detailRow || !detailRow.classList.contains('api-log-detail-row')) return;
+            if (apiLogExpanded.has(ip)) {
+                apiLogExpanded.delete(ip);
+                groupRow.classList.remove('is-open');
+                detailRow.style.display = 'none';
+                return;
+            }
+            apiLogExpanded.add(ip);
+            groupRow.classList.add('is-open');
+            detailRow.style.display = '';
+            if (!apiLogDetailCache.has(ip)) {
+                fetchApiLogDetail(ip, 1, false);
+            } else {
+                paintApiLogDetail(ip);
+            }
+        };
+
+        document.getElementById('apiLogsList').addEventListener('click', (event) => {
+            const moreBtn = event.target.closest('button[data-more-ip]');
+            if (moreBtn) {
+                event.stopPropagation();
+                const ip = moreBtn.dataset.moreIp;
+                const state = apiLogDetailCache.get(ip);
+                fetchApiLogDetail(ip, (state?.page || 1) + 1, true);
+                return;
+            }
+            const groupRow = event.target.closest('tr.api-log-group');
+            if (groupRow) toggleApiLogGroup(groupRow.dataset.ip);
+        });
+
         const resetApiLogFilters = () => {
             document.getElementById('apiLogStartTime').value = '';
             document.getElementById('apiLogEndTime').value = '';
             document.getElementById('apiLogIP').value = '';
+            document.getElementById('apiLogReferer').value = '';
             document.getElementById('apiLogServer').value = '';
             document.getElementById('apiLogType').value = '';
             document.getElementById('apiLogStatus').value = '';
@@ -3833,6 +4776,12 @@ const getAdminHtml = (options = {}) => {
 
         const updateApiLogPagination = () => {
             document.getElementById('apiLogTotalCount').textContent = apiLogTotalCount;
+            const unit = document.getElementById('apiLogCountUnit');
+            if (unit) {
+                unit.textContent = apiLogGrouped
+                    ? '个来源 IP' + (apiLogTotalCalls ? '（共 ' + apiLogTotalCalls + ' 条调用）' : '')
+                    : '条记录';
+            }
             document.getElementById('apiLogCurrentPage').textContent = apiLogCurrentPage;
             document.getElementById('apiLogTotalPages').textContent = apiLogTotalPages;
             document.getElementById('apiLogPageInfo').textContent = apiLogCurrentPage;
@@ -3854,27 +4803,143 @@ const getAdminHtml = (options = {}) => {
             } catch (_) {}
         };
 
+        let refererItems = new Map();
+
+        const refererLabel = (host) => host === 'direct' ? '直接访问' : host === 'invalid' ? '无效来源' : host;
+        const refererRangeLabel = (hours) => {
+            const value = Number(hours) || 24;
+            if (value === 168) return '近 7 天';
+            if (value === 720) return '近 30 天';
+            return '近 24 小时';
+        };
+
+        const renderRefererDist = (title, list, labelFn) => {
+            if (!Array.isArray(list) || !list.length) return '';
+            const chips = list.slice(0, 6).map(item => {
+                const label = labelFn ? labelFn(item.name) : item.name;
+                return '<span class="referer-chip">' + escapeHtml(label || '-') + ' <b>' + item.count + '</b> ' +
+                    (item.share * 100).toFixed(0) + '%</span>';
+            }).join('');
+            return '<div class="referer-dist"><span class="referer-dist-label">' + escapeHtml(title) + '</span>' +
+                '<div class="referer-chips">' + chips + '</div></div>';
+        };
+
+        const renderRefererDetailHtml = (item) => {
+            const topIPs = item.topIPs || [];
+            const ipRows = topIPs.map(ip => {
+                const source = ip.source ? '<span class="geo-source">' + escapeHtml(ip.source) + '</span>' : '';
+                return '<tr>' +
+                    '<td><code>' + escapeHtml(ip.ip) + '</code></td>' +
+                    '<td>' + escapeHtml(ip.geoLabel || '-') + source + '</td>' +
+                    '<td>' + ip.count + '</td>' +
+                    '<td><span class="api-log-codes">成功 ' + (ip.success || 0) + ' · 失败 ' + (ip.error || 0) + '</span></td>' +
+                    '<td>' + escapeHtml(formatDate(ip.lastSeen)) + '</td>' +
+                    '</tr>';
+            }).join('');
+            const distBlocks = [
+                renderRefererDist('平台分布', item.servers),
+                renderRefererDist('类型分布', item.types, typeLabel),
+                renderRefererDist('地区分布', item.regions),
+                renderRefererDist('Host 分布', item.hostHeaders),
+            ].filter(Boolean).join('');
+            const ipTable = ipRows
+                ? '<div class="referer-dist-label" style="margin-bottom:6px;">Top IP（按调用次数）</div>' +
+                    '<div class="table-container"><table class="table table-sm referer-ip-table">' +
+                        '<thead><tr><th>IP</th><th>归属地</th><th>调用</th><th>成功 / 失败</th><th>最近访问</th></tr></thead>' +
+                        '<tbody>' + ipRows + '</tbody>' +
+                    '</table></div>' +
+                    (item.uniqueIPs > topIPs.length
+                        ? '<p class="user-info-tooltip" style="margin-top:6px;">共 ' + item.uniqueIPs + ' 个 IP，这里显示调用最多的 ' + topIPs.length + ' 个；完整列表可点右上角在 API 日志中筛选。</p>'
+                        : '')
+                : '<p class="user-info-tooltip">暂无 IP 明细</p>';
+            return '<div class="referer-detail-head">' +
+                    '<span>共 ' + item.count + ' 次 · 成功 ' + (item.successCount || 0) + ' · 失败 ' + (item.errorCount || 0) +
+                        ' · ' + item.uniqueIPs + ' 个 IP · 首次 ' + escapeHtml(formatDate(item.firstSeen)) +
+                        ' · 最近 ' + escapeHtml(formatDate(item.lastSeen)) + '</span>' +
+                    '<button type="button" class="btn btn-default btn-sm" data-referer-view="' + escapeHtml(item.host) + '">在 API 日志中查看</button>' +
+                '</div>' +
+                (distBlocks ? '<div class="referer-dist-grid">' + distBlocks + '</div>' : '') +
+                ipTable;
+        };
+
+        const renderRefererRow = (item) => {
+            const host = refererLabel(item.host);
+            const share = (item.share * 100).toFixed(1) + '%';
+            const region = item.topRegion || (item.topCountry && item.topCountry !== '??' ? item.topCountry : '');
+            const topHost = item.hostHeaders?.[0]?.name || '';
+            return '<tr class="referer-row" data-host="' + escapeHtml(item.host) + '" title="点击查看该来源详情">' +
+                    '<td><b>' + escapeHtml(host) + '</b>' +
+                        (topHost ? '<div class="api-log-codes" title="Host ' + escapeHtml(topHost) + '">Host ' + escapeHtml(topHost) + '</div>' : '') +
+                    '</td>' +
+                    '<td>' + item.count + '</td>' +
+                    '<td>' + share + '</td>' +
+                    '<td>' + item.uniqueIPs + '</td>' +
+                    '<td>' + escapeHtml(item.topServer || '-') + '</td>' +
+                    '<td>' + escapeHtml(region || '-') + '</td>' +
+                    '<td>' + escapeHtml(formatDate(item.lastSeen)) + '</td>' +
+                '</tr>';
+        };
+
+        const openRefererModal = (host) => {
+            const item = refererItems.get(host);
+            if (!item) return;
+            const title = document.getElementById('refererModalTitle');
+            const body = document.getElementById('refererModalBody');
+            if (title) title.textContent = '来源详情 · ' + refererLabel(host);
+            if (body) body.innerHTML = '<div class="referer-detail referer-detail-modal">' + renderRefererDetailHtml(item) + '</div>';
+            const modal = document.getElementById('refererModal');
+            if (modal) modal.classList.add('show');
+        };
+
+        const openApiLogsForReferer = (host) => {
+            const hours = Number(document.getElementById('refererHours')?.value) || 24;
+            const since = Date.now() - hours * 60 * 60 * 1000;
+            document.getElementById('apiLogStartTime').value = toDateTimeLocal(since);
+            document.getElementById('apiLogEndTime').value = '';
+            document.getElementById('apiLogIP').value = '';
+            document.getElementById('apiLogReferer').value = host;
+            document.getElementById('apiLogServer').value = '';
+            document.getElementById('apiLogType').value = '';
+            document.getElementById('apiLogStatus').value = '';
+            document.getElementById('apiLogKeyword').value = '';
+            switchSection('apilogs');
+        };
+
+        document.getElementById('refererList').addEventListener('click', (event) => {
+            const row = event.target.closest('tr.referer-row');
+            if (row) openRefererModal(row.dataset.host);
+        });
+
+        document.getElementById('refererModal').addEventListener('click', (event) => {
+            const viewBtn = event.target.closest('button[data-referer-view]');
+            if (!viewBtn) return;
+            event.stopPropagation();
+            closeModal('refererModal');
+            openApiLogsForReferer(viewBtn.dataset.refererView);
+        });
+
         const loadReferers = async () => {
             const tbody = document.getElementById('refererList');
             if (!tbody) return;
             const hours = document.getElementById('refererHours')?.value || '24';
+            const limit = document.getElementById('refererLimit')?.value || '30';
             try {
-                const res = await api('/admin/api-logs/referers?hours=' + encodeURIComponent(hours));
+                const res = await api('/admin/api-logs/referers?hours=' + encodeURIComponent(hours) + '&limit=' + encodeURIComponent(limit));
                 if (!res?.success) return;
                 const data = res.data || {};
+                refererItems = new Map((data.items || []).map(item => [item.host, item]));
                 if (!data.items || data.items.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">该时间范围内没有来源记录</td></tr>';
+                    const summary = document.getElementById('refererSummary');
+                    if (summary) summary.textContent = '';
                     return;
                 }
-                tbody.innerHTML = data.items.map(item => {
-                    const host = item.host === 'direct' ? '直接访问' : escapeHtml(item.host);
-                    const share = (item.share * 100).toFixed(1) + '%';
-                    const region = item.topRegion || (item.topCountry && item.topCountry !== '??' ? item.topCountry : '');
-                    return '<tr><td>' + host + '</td><td>' + item.count + '</td><td>' + share + '</td><td>' +
-                        item.uniqueIPs + '</td><td>' + escapeHtml(item.topServer || '-') + '</td><td>' +
-                        escapeHtml(region || '-') + '</td><td>' +
-                        escapeHtml(formatDate(item.lastSeen)) + '</td></tr>';
-                }).join('');
+                tbody.innerHTML = data.items.map(renderRefererRow).join('');
+                const summary = document.getElementById('refererSummary');
+                if (summary) {
+                    summary.textContent = refererRangeLabel(hours) + ' 共 ' + (data.uniqueHosts || 0) + ' 个来源、' +
+                        (data.total || 0) + ' 次调用，当前显示前 ' + data.items.length + ' 个（点行查看详情）';
+                }
                 const countryBox = document.getElementById('refererCountries');
                 if (countryBox) {
                     const regions = (data.regions || [])
@@ -3893,64 +4958,112 @@ const getAdminHtml = (options = {}) => {
             }
         };
 
-        const loadApiLogs = async (page = 1) => {
-            apiLogCurrentPage = page;
-            const filters = getApiLogFilters();
-            const params = new URLSearchParams({ page, pageSize: 50 });
-            if (filters.startTime) params.set('startTime', filters.startTime);
-            if (filters.endTime) params.set('endTime', filters.endTime);
-            if (filters.ip) params.set('ip', filters.ip);
-            if (filters.server) params.set('server', filters.server);
-            if (filters.type) params.set('type', filters.type);
-            if (filters.status) params.set('status', filters.status);
-            if (filters.keyword) params.set('keyword', filters.keyword);
+        const API_LOG_GROUP_COLS =
+            '<col style="width:150px;"><col style="width:160px;"><col style="width:330px;">' +
+            '<col style="width:110px;"><col style="width:150px;"><col style="width:90px;">' +
+            '<col style="width:190px;">';
+        const API_LOG_GROUP_HEAD =
+            '<tr><th>最近调用</th><th>IP 地址</th><th>归属地</th>' +
+            '<th>请求数</th><th>状态码</th><th>平均耗时</th><th>最新请求</th></tr>';
+        const API_LOG_FLAT_COLS =
+            '<col style="width:150px;"><col style="width:145px;"><col style="width:80px;">' +
+            '<col style="width:70px;"><col style="width:210px;"><col style="width:180px;">' +
+            '<col style="width:65px;"><col style="width:65px;"><col style="width:65px;"><col style="width:180px;">';
+        const API_LOG_FLAT_HEAD =
+            '<tr><th>时间</th><th>IP 地址</th><th>平台</th><th>类型</th><th>归属地</th><th>请求 ID</th>' +
+            '<th>状态码</th><th>状态</th><th>耗时</th><th>歌曲信息</th></tr>';
+
+        const renderApiLogFlatRow = (log) => {
+            const statusBadge = log.status === 'success'
+                ? '<span class="badge badge-success">成功</span>'
+                : '<span class="badge badge-error">失败</span>';
+            return '<tr>' +
+                '<td>' + escapeHtml(formatDate(log.timestamp)) + '</td>' +
+                '<td><div class="cell-clip" title="' + escapeHtml(log.ip) + '">' + escapeHtml(log.ip) + '</div></td>' +
+                '<td>' + escapeHtml(log.server || '-') + '</td>' +
+                '<td><div class="cell-clip cell-clip-type" title="' + escapeHtml(log.type || '-') + '">' + escapeHtml(log.type || '-') + '</div></td>' +
+                '<td>' + renderGeoCell(log) + '</td>' +
+                '<td><div class="cell-clip cell-clip-id" title="' + escapeHtml(log.requestId || '-') + '">' + escapeHtml(log.requestId || '-') + '</div></td>' +
+                '<td>' + escapeHtml(String(log.statusCode ?? '-')) + '</td>' +
+                '<td>' + statusBadge + '</td>' +
+                '<td>' + escapeHtml((log.durationMs || 0) + 'ms') + '</td>' +
+                '<td><div class="cell-clip cell-clip-song" title="' + escapeHtml(songTextOf(log)) + '">' + escapeHtml(songTextOf(log)) + '</div></td>' +
+                '</tr>';
+        };
+
+        const loadApiLogs = async (page = 1, options = {}) => {
+            const quiet = options.quiet === true;
+            const pollRound = Number(options.pollRound) || 0;
+            // 用户正在展开详情时不要用轮询结果把表格重绘掉
+            if (quiet && apiLogExpanded.size > 0) return;
+            if (apiLogGeoPollTimer) {
+                clearTimeout(apiLogGeoPollTimer);
+                apiLogGeoPollTimer = null;
+            }
+            apiLogCurrentPage = Math.max(1, page);
+            if (!quiet) {
+                apiLogExpanded.clear();
+                apiLogDetailCache.clear();
+            }
+
+            const filters = quiet && apiLogActiveFilters ? { ...apiLogActiveFilters } : getApiLogFilters();
+            if (!quiet) apiLogActiveFilters = { ...filters };
+            const grouped = document.getElementById('apiLogGroupByIp')?.checked !== false;
+            apiLogGrouped = grouped;
+            const params = apiLogFilterParams(filters);
+            params.set('page', apiLogCurrentPage);
+            params.set('group', grouped ? 'ip' : 'none');
+            params.set('pageSize', grouped ? '25' : '50');
 
             const res = await api('/admin/api-logs?' + params.toString());
-            if (!res?.success) return;
+            if (!res?.success) {
+                if (!quiet) showToast(res?.error || '日志加载失败', 'error');
+                return;
+            }
 
-            const { items, total, totalPages } = res;
-            apiLogTotalPages = totalPages;
+            const { items = [], total = 0, totalPages = 1 } = res;
+            apiLogTotalPages = totalPages || 1;
             apiLogTotalCount = total;
+            apiLogTotalCalls = res.totalCalls || total;
+            if (apiLogCurrentPage > apiLogTotalPages) {
+                return loadApiLogs(apiLogTotalPages, options);
+            }
+
+            const head = document.getElementById('apiLogsHead');
+            const cols = document.getElementById('apiLogsCols');
+            if (head) head.innerHTML = grouped ? API_LOG_GROUP_HEAD : API_LOG_FLAT_HEAD;
+            if (cols) cols.innerHTML = grouped ? API_LOG_GROUP_COLS : API_LOG_FLAT_COLS;
+
+            apiLogGroupMeta.clear();
+            if (grouped) {
+                for (const item of items) apiLogGroupMeta.set(item.ip, item);
+            }
 
             const tbody = document.getElementById('apiLogsList');
-            if (items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#94a3b8;">暂无记录</td></tr>';
+            if (!items.length) {
+                tbody.innerHTML = '<tr><td colspan="' + (grouped ? 7 : 10) + '" style="text-align:center;padding:20px;color:#94a3b8;">暂无记录</td></tr>';
+            } else if (grouped) {
+                tbody.innerHTML = items.map(renderApiLogGroupRow).join('');
             } else {
-                tbody.innerHTML = items.map(l => {
-                    const statusBadge = l.status === 'success'
-                        ? '<span class="badge badge-success">成功</span>'
-                        : '<span class="badge badge-error">失败</span>';
-                    const typeText = l.type || '-';
-                    const requestId = l.requestId || '-';
-                    const songText = l.songName ? (l.songName + (l.songArtist ? ' - ' + l.songArtist : '')) : '-';
-                    return '<tr>' +
-                        '<td>' + escapeHtml(formatDate(l.timestamp)) + '</td>' +
-                        '<td>' + escapeHtml(l.ip) + '</td>' +
-                        '<td>' + escapeHtml(l.server) + '</td>' +
-                        '<td><div class="cell-clip cell-clip-type" title="' + escapeHtml(typeText) + '">' + escapeHtml(typeText) + '</div></td>' +
-                        '<td><div class="cell-clip cell-clip-id" title="' + escapeHtml(requestId) + '">' + escapeHtml(requestId) + '</div></td>' +
-                        '<td>' + escapeHtml(String(l.statusCode)) + '</td>' +
-                        '<td>' + statusBadge + '</td>' +
-                        '<td>' + escapeHtml(l.durationMs + 'ms') + '</td>' +
-                        '<td><div class="cell-clip cell-clip-song" title="' + escapeHtml(songText) + '">' + escapeHtml(songText) + '</div></td>' +
-                        '</tr>';
-                }).join('');
+                tbody.innerHTML = items.map(renderApiLogFlatRow).join('');
             }
+
             updateApiLogPagination();
-            loadApiLogStats();
+            if (!quiet) loadApiLogStats();
+
+            // 老日志没有归属地：后台已排队补查，前端静默轮询几次把结果刷出来
+            if ((res.geoPending || 0) > 0 && pollRound < 4 && apiLogExpanded.size === 0) {
+                apiLogGeoPollTimer = setTimeout(() => {
+                    if (apiLogExpanded.size === 0) {
+                        loadApiLogs(apiLogCurrentPage, { quiet: true, pollRound: pollRound + 1 });
+                    }
+                }, 3000);
+            }
         };
 
         const exportApiLogs = () => {
             const filters = getApiLogFilters();
-            const params = new URLSearchParams();
-            if (filters.startTime) params.set('startTime', filters.startTime);
-            if (filters.endTime) params.set('endTime', filters.endTime);
-            if (filters.ip) params.set('ip', filters.ip);
-            if (filters.server) params.set('server', filters.server);
-            if (filters.type) params.set('type', filters.type);
-            if (filters.status) params.set('status', filters.status);
-            if (filters.keyword) params.set('keyword', filters.keyword);
-            window.open('/admin/api-logs/export?' + params.toString(), '_blank');
+            window.open('/admin/api-logs/export?' + apiLogFilterParams(filters).toString(), '_blank');
         };
 
         const clearApiLogs = async () => {
@@ -4472,12 +5585,18 @@ const getAdminHtml = (options = {}) => {
 
         document.getElementById('geoForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const key = document.getElementById('geoApiKey').value.trim();
-            const body = { enabled: document.getElementById('geoEnabled').checked };
-            if (key) body.key = key;
-            const res = await api('/admin/geo', { method: 'PUT', body: JSON.stringify(body) });
+            const enabled = document.getElementById('geoEnabled').checked;
+            const providers = collectGeoProviders();
+            if (enabled && !providers.some((item) => item.enabled)) {
+                showToast('请至少启用一个归属地通道，或先关闭在线查询', 'error');
+                return;
+            }
+            const res = await api('/admin/geo', {
+                method: 'PUT',
+                body: JSON.stringify({ enabled, providers }),
+            });
             if (res?.success) {
-                showToast('IP 归属地配置已保存');
+                showToast('IP 归属地通道配置已保存');
                 loadGeoConfig();
             } else {
                 showToast(res?.error || '保存失败', 'error');
@@ -4490,8 +5609,8 @@ const getAdminHtml = (options = {}) => {
             const apiUrl = document.getElementById('loginBgApiUrl').value.trim();
             const ttlHours = parseInt(document.getElementById('loginBgTtlHours').value, 10);
             if (!apiUrl) { showToast('请填写图片接口地址', 'error'); return; }
-            if (!Number.isInteger(ttlHours) || ttlHours < 1 || ttlHours > 168) {
-                showToast('缓存有效期需为 1~168 小时', 'error');
+            if (!Number.isInteger(ttlHours) || ttlHours < 0 || ttlHours > 168) {
+                showToast('缓存有效期需为 0~168 小时（0 = 永久缓存）', 'error');
                 return;
             }
             const submitBtn = e.currentTarget.querySelector('button[type="submit"]');
@@ -4533,6 +5652,7 @@ const getAdminHtml = (options = {}) => {
             const input = document.getElementById('geoTestIp');
             const fields = [
                 ['IP', d.ip || (input ? input.value.trim() : '')],
+                ['来源通道', d.providerLabel || geoSourceLabel(d.source)],
                 ['国家 / 地区', [d.country, d.countryCode ? '(' + d.countryCode + ')' : ''].filter(Boolean).join(' ')],
                 ['省 / 市 / 区', [d.region, d.city, d.county].filter(Boolean).join(' · ')],
                 ['运营商', d.isp],
@@ -4548,35 +5668,69 @@ const getAdminHtml = (options = {}) => {
             box.style.display = '';
         };
 
-        const testGeoApi = async () => {
+        const renderGeoTestResults = (results) => {
+            const box = document.getElementById('geoTestResults');
+            if (!box) return;
+            if (!Array.isArray(results) || !results.length) {
+                box.innerHTML = '';
+                return;
+            }
+            box.innerHTML = results.map((item) => {
+                const label = escapeHtml(item.label || geoSourceLabel(item.id));
+                if (item.success) {
+                    const d = item.data || {};
+                    const summary = uniqueGeoParts([d.country, d.region, d.city, d.county]).join(' · ') || d.countryCode || '未知';
+                    return '<div class="geo-test-result is-ok"><b>' + label + '</b> · 成功（' + (item.durationMs || 0) + 'ms）<br>' +
+                        escapeHtml(summary) + (d.isp ? ' · ' + escapeHtml(d.isp) : '') + '</div>';
+                }
+                return '<div class="geo-test-result is-fail"><b>' + label + '</b> · 失败：' + escapeHtml(item.error || '未知错误') + '</div>';
+            }).join('');
+        };
+
+        const testGeoApi = async (providerId) => {
             const input = document.getElementById('geoTestIp');
             const ip = input ? input.value.trim() : '';
-            const key = document.getElementById('geoApiKey').value.trim();
             const status = document.getElementById('geoTestStatus');
             const box = document.getElementById('geoTestResult');
-            if (status) status.textContent = '正在查询 ' + (ip || '当前 IP') + ' …';
+            const provider = providerId || 'all';
+            if (status) status.textContent = '正在用' + (provider === 'all' ? '全部已启用通道' : geoSourceLabel(provider)) + '查询 ' + (ip || '当前 IP') + ' …';
             if (box) box.style.display = 'none';
-            const body = {};
-            if (ip) body.ip = ip;
-            if (key) body.key = key;
+            const body = {
+                ip,
+                provider,
+                providers: collectGeoProviders(),
+            };
             const res = await api('/admin/geo/test', {
                 method: 'POST',
                 body: JSON.stringify(body),
             });
-            if (res?.success) {
-                const d = res.data || {};
-                if (d.ip && input) input.value = d.ip;
-                renderGeoResult(d);
-                if (status) {
-                    const label = [d.region, d.city, d.county].filter(Boolean).join(' · ') || d.country || d.countryCode || '未知';
-                    status.textContent = '查询成功：' + (d.ip || ip) + ' → ' + label;
-                }
+            const results = res?.results || [];
+            renderGeoTestResults(results);
+            const first = results.find((item) => item.success);
+            if (first?.data) {
+                if (first.data.ip && input) input.value = first.data.ip;
+                renderGeoResult(first.data);
+            }
+            if (res?.success && first?.data) {
+                const d = first.data;
+                const label = uniqueGeoParts([d.region, d.city, d.county]).join(' · ') || d.country || d.countryCode || '未知';
+                const used = results.filter((item) => item.success).length;
+                const primary = results[0];
+                const fallbackUsed = res.fallbackUsed === true || (primary && !primary.success && first.id !== primary.id);
+                const prefix = fallbackUsed
+                    ? '主通道 ' + (primary.label || primary.id) + ' 失败，已回退 ' + (first.label || first.id) + '：'
+                    : '查询成功：';
+                if (status) status.textContent = prefix + (d.ip || ip) + ' → ' + label +
+                    '（通道 ' + (d.providerLabel || geoSourceLabel(d.source)) +
+                    (!fallbackUsed && results.length > 1 ? '，' + used + '/' + results.length + ' 个通道可用' : '') + '）';
                 showToast('查询成功');
             } else {
-                if (status) status.textContent = '查询失败：' + (res?.error || '未知错误');
+                if (status) status.textContent = '查询失败：' + (res?.error || '所有通道均不可用');
                 showToast(res?.error || '查询失败', 'error');
             }
         };
+
+        const testGeoProvider = (providerId) => testGeoApi(providerId);
 
         const clearGeoCacheConfirm = async () => {
             if (!confirm('确定清空本地 IP 归属地缓存？')) return;

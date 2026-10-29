@@ -258,6 +258,7 @@ export default async (ctx) => {
             apiLogger.addLog({
                 ip, server, type, requestId: id, status: logStatus, statusCode: logStatusCode,
                 durationMs: Date.now() - startTime, songName, songArtist, error: logError, userAgent,
+                referer, host,
             })
         }
     }

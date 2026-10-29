@@ -14,6 +14,11 @@ import {
     CACHE_MAX_ENTRIES_MIN,
     CACHE_MAX_ENTRIES_MAX,
 } from '../service/cache-config.js'
+import {
+    GEO_PROVIDER_DEFS,
+    GEO_PROVIDER_MAP,
+    normalizeGeoProviderConfig,
+} from '../service/geo-providers.js'
 
 const runtime = get_runtime()
 
@@ -998,35 +1003,99 @@ class DataStore {
     }
 
     getGeoConfig() {
+        const stored = this.config.geoProviders && typeof this.config.geoProviders === 'object'
+            ? this.config.geoProviders
+            : {}
+        const providers = normalizeGeoProviderConfig(stored)
+        // 旧版本只有 geoApiKey 字段，迁移时把它补进 ShowAPI 通道
+        const legacyKey = typeof this.config.geoApiKey === 'string' ? this.config.geoApiKey.trim() : ''
+        if (legacyKey && !providers.showapi.key) providers.showapi.key = legacyKey
         return {
             enabled: this.config.geoApiEnabled !== false,
-            key: this.config.geoApiKey || '',
+            providers,
             cacheTtlDays: Number(this.config.geoApiCacheTtlDays) || 30
         }
     }
 
     async setGeoConfig(config = {}, operator = 'system') {
+        // 从 getGeoConfig() 起步，确保旧版 geoApiKey 在首次保存时被迁移进来而不是丢掉
+        const next = normalizeGeoProviderConfig(this.getGeoConfig().providers)
+        let touched = false
+
         if (config.enabled !== undefined) {
             this.config.geoApiEnabled = !!config.enabled
+            touched = true
         }
+
+        const rawProviders = config.providers
+        if (rawProviders && typeof rawProviders === 'object') {
+            const list = Array.isArray(rawProviders)
+                ? rawProviders
+                : Object.entries(rawProviders).map(([id, item]) => ({ id, ...(item || {}) }))
+            for (const item of list) {
+                if (!item || !item.id) continue
+                const def = GEO_PROVIDER_MAP.get(item.id)
+                if (!def) {
+                    return { success: false, error: `未知的 IP 归属地通道: ${item.id}` }
+                }
+                if (item.enabled !== undefined) {
+                    next[def.id].enabled = !!item.enabled
+                    touched = true
+                }
+                if (item.order !== undefined) {
+                    const order = Number(item.order)
+                    if (!Number.isFinite(order)) {
+                        return { success: false, error: `${def.label} 的顺序必须是数字` }
+                    }
+                    next[def.id].order = Math.max(-1000, Math.min(1000, Math.round(order)))
+                    touched = true
+                }
+                if (item.clearKey) {
+                    next[def.id].key = ''
+                    touched = true
+                } else if (typeof item.key === 'string' && item.key.trim()) {
+                    const key = item.key.trim()
+                    const min = def.id === 'showapi' ? 8 : 4
+                    const max = def.id === 'showapi' ? 128 : 256
+                    if (key.length < min || key.length > max || /\s/.test(key)) {
+                        return { success: false, error: `${def.label} 密钥格式不正确` }
+                    }
+                    next[def.id].key = key
+                    touched = true
+                }
+            }
+        }
+
+        // 兼容旧接口：{ key, clearKey } 直接作用于 ShowAPI
         if (config.clearKey) {
-            delete this.config.geoApiKey
+            next.showapi.key = ''
+            touched = true
         } else if (typeof config.key === 'string' && config.key.trim()) {
             const key = config.key.trim()
             if (key.length < 8 || key.length > 128 || /\s/.test(key)) {
                 return { success: false, error: 'appKey 格式不正确' }
             }
-            this.config.geoApiKey = key
+            next.showapi.key = key
+            touched = true
         }
-        await this.addLog('geo_api_update', `更新 IP 归属地接口配置: ${this.config.geoApiKey ? '已配置密钥' : '未配置密钥'}`, operator)
+
+        if (!touched) {
+            return { success: false, error: '没有需要保存的 IP 归属地配置' }
+        }
+
+        this.config.geoProviders = next
+        // 新结构已成为唯一事实来源，清掉旧字段避免两处配置互相覆盖
+        delete this.config.geoApiKey
+        const enabledLabels = GEO_PROVIDER_DEFS
+            .filter((def) => next[def.id].enabled)
+            .map((def) => (def.needsKey && !next[def.id].key ? `${def.label}(无密钥)` : def.label))
+        await this.addLog(
+            'geo_api_update',
+            `更新 IP 归属地通道: ${enabledLabels.length ? enabledLabels.join(' > ') : '全部关闭'}`,
+            operator
+        )
         await this.saveToFile()
-        return {
-            success: true,
-            data: {
-                enabled: this.getGeoConfig().enabled,
-                hasKey: !!this.config.geoApiKey
-            }
-        }
+        return { success: true, data: this.getGeoConfig() }
     }
 
     getLoginBgConfig() {

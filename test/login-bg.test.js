@@ -77,8 +77,9 @@ describe('登录页背景图配置', () => {
         expect((await store.setLoginBgConfig({ apiUrl: 'https://uapis.cn/api/v1/random/image?category=acg' })).success).toBe(true)
     })
 
-    it('拒绝越界的缓存有效期', async () => {
-        expect((await store.setLoginBgConfig({ ttlHours: 0 })).success).toBe(false)
+    it('缓存有效期支持 0（永久缓存），拒绝越界值', async () => {
+        expect((await store.setLoginBgConfig({ ttlHours: 0 })).success).toBe(true)
+        expect(store.getLoginBgConfig().ttlHours).toBe(0)
         expect((await store.setLoginBgConfig({ ttlHours: 169 })).success).toBe(false)
         expect((await store.setLoginBgConfig({ ttlHours: 2.5 })).success).toBe(false)
         expect((await store.setLoginBgConfig({ ttlHours: 12 })).success).toBe(true)
@@ -173,6 +174,29 @@ describe('同源背景图缓存', () => {
         const image = await app.request('/admin/login-bg')
         expect(image.status).toBe(502)
         expect(image.headers.get('x-login-bg')).toBe('ERROR')
+    })
+
+    it('TTL=0 时永久使用缓存，时间推进也不刷新', async () => {
+        service.clearLoginBgCache()
+        await store.setLoginBgConfig({ enabled: true, ttlHours: 0 })
+        const { fn } = stubImageFetch(OLD_IMAGE)
+        const realNow = Date.now()
+
+        const first = await app.request('/admin/login-bg')
+        expect(first.headers.get('x-login-bg')).toBe('MISS')
+        expect(fn).toHaveBeenCalledTimes(1)
+
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(realNow + 180 * 24 * 60 * 60 * 1000)
+        try {
+            const later = await app.request('/admin/login-bg')
+            expect(later.headers.get('x-login-bg')).toBe('HIT')
+            expect(fn).toHaveBeenCalledTimes(1)
+            expect(new Uint8Array(await later.arrayBuffer())).toEqual(OLD_IMAGE)
+        } finally {
+            vi.useRealTimers()
+            await store.setLoginBgConfig({ enabled: true, ttlHours: 6 })
+        }
     })
 
     it('关闭后图片路由返回 404，不再打接口', async () => {
