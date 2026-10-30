@@ -18,7 +18,8 @@ import {
 
 const DATA_DIR = globalThis?.process?.env?.DATA_DIR || './data'
 const LOGS_FILE = 'api_logs.json'
-const MAX_LOGS = 5000
+// 约 1000 请求/天，40000 条 ≈ 30 天余量；配合紧凑序列化（无缩进）控制文件体积
+const MAX_LOGS = 40000
 
 /** @type {Array<{id:string, timestamp:number, ip:string, server:string, type:string, requestId:string, status:string, statusCode:number, durationMs:number, songName:string, songArtist:string, error:string, userAgent:string}>} */
 let logs = []
@@ -58,7 +59,8 @@ const saveToFile = () => {
     ensureDir()
     try {
         const toSave = logs.slice(-MAX_LOGS)
-        fs.writeFileSync(path.join(DATA_DIR, LOGS_FILE), JSON.stringify(toSave, null, 2))
+        // 紧凑序列化：40000 条量级下，缩进空白约占 40% 体积
+        fs.writeFileSync(path.join(DATA_DIR, LOGS_FILE), JSON.stringify(toSave))
     } catch (e) {
         console.log('[ApiLogger] 保存日志失败:', e.message)
     }
