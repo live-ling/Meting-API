@@ -1635,13 +1635,16 @@ const getAdminHtml = (options = {}) => {
         .line-chart text { font-family: inherit; }
         .chart-note { margin-top: 6px; color: var(--text-muted); font-size: 11px; }
         .chart-area { opacity: 0; animation: chartFadeIn .8s .12s ease forwards; }
-        .chart-line {
+        .chart-line:not(.chart-line-error) {
             stroke-dasharray: 1;
             stroke-dashoffset: 1;
             animation: chartDraw 1.15s cubic-bezier(.22,.61,.36,1) forwards;
         }
-        .chart-line-success { animation-delay: .08s; }
-        .chart-line-error { animation-delay: .16s; }
+        /* 失败线用虚线区分（dasharray 由 SVG 属性给出，避免 CSS 覆盖）；入场用淡入 */
+        .chart-line-error {
+            animation: chartFadeIn .9s .16s ease forwards;
+            opacity: 0;
+        }
         .chart-dot {
             opacity: 0;
             transform-box: fill-box;
@@ -1662,10 +1665,57 @@ const getAdminHtml = (options = {}) => {
             font-size: 12px;
             opacity: 0;
             animation: chartRise .45s ease forwards;
+            border: 0;
+            background: transparent;
+            padding: 2px 4px;
+            font: inherit;
+            color: inherit;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: opacity var(--transition), background var(--transition);
         }
-        .donut-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 3px; }
-        .donut-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .donut-val { color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .donut-legend-row:hover { background: var(--primary-bg); }
+        .donut-legend-row.is-hidden { opacity: 0.38; animation: none; }
+        .donut-legend-row.is-hidden .donut-dot { background: var(--border) !important; }
+        .donut-top-tag {
+            font-style: normal;
+            margin-left: 4px;
+            padding: 1px 5px;
+            border-radius: 999px;
+            background: var(--primary-bg);
+            color: var(--primary-dark);
+            font-size: 9px;
+            font-weight: 600;
+            vertical-align: 1px;
+        }
+        .donut-dot {
+            flex: 0 0 8px;
+            width: 8px;
+            height: 8px;
+            border-radius: 3px;
+            font-style: normal;
+            line-height: 1;
+        }
+        .donut-label {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            color: var(--text-secondary);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: left;
+        }
+        /* 数值列固定宽度右对齐：各行的「次数 · 占比」落在同一竖线上 */
+        .donut-val {
+            flex: 0 0 auto;
+            min-width: 76px;
+            margin-left: 8px;
+            text-align: right;
+            color: var(--text-muted);
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
         .donut-seg { opacity: 0; animation: donutFadeIn .7s ease forwards; }
         .donut-center { opacity: 0; animation: chartFadeIn .5s .25s ease forwards; }
 
@@ -1682,6 +1732,7 @@ const getAdminHtml = (options = {}) => {
                 opacity: 1;
             }
             .chart-line { animation: none; stroke-dashoffset: 0; }
+            .chart-line-error { animation: none; opacity: 1; }
             .cache-ttl-fill { transform: none; }
         }
 
@@ -1788,6 +1839,19 @@ const getAdminHtml = (options = {}) => {
         }
         .legend-item { display: inline-flex; align-items: center; gap: 6px; }
         .legend-swatch { width: 8px; height: 8px; border-radius: 2px; }
+        .legend-item.legend-toggle {
+            border: 0;
+            background: transparent;
+            padding: 2px 4px;
+            font: inherit;
+            color: inherit;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: opacity var(--transition), background var(--transition);
+        }
+        .legend-item.legend-toggle:hover { background: var(--primary-bg); }
+        .legend-item.legend-toggle.is-hidden { opacity: 0.38; }
+        .legend-item.legend-toggle.is-hidden .legend-swatch { background: var(--border); }
         .legend-total { background: var(--primary-dark); }
         .legend-ok { background: var(--success); }
         .legend-err { background: var(--danger); }
@@ -2223,10 +2287,10 @@ const getAdminHtml = (options = {}) => {
                                 <span class="card-title" id="boardTrendTitle">近 24 小时请求趋势</span>
                             </div>
                             <div class="line-chart" id="boardLineChart"></div>
-                            <p class="chart-legend">
-                                <span class="legend-item"><i class="legend-swatch legend-total"></i>总请求</span>
-                                <span class="legend-item"><i class="legend-swatch legend-ok"></i>成功</span>
-                                <span class="legend-item"><i class="legend-swatch legend-err"></i>失败</span>
+                            <p class="chart-legend" id="boardLineLegend">
+                                <button type="button" class="legend-item legend-toggle" data-chart="boardLine" data-series="total"><i class="legend-swatch legend-total"></i>总请求</button>
+                                <button type="button" class="legend-item legend-toggle" data-chart="boardLine" data-series="success"><i class="legend-swatch legend-ok"></i>成功</button>
+                                <button type="button" class="legend-item legend-toggle" data-chart="boardLine" data-series="error"><i class="legend-swatch legend-err"></i>失败</button>
                                 <span class="legend-note" id="boardLineLegendNote">每个点代表一小时，悬停可见明细</span>
                             </p>
                             <p class="chart-note" id="boardLineNote"></p>
@@ -3621,10 +3685,10 @@ const getAdminHtml = (options = {}) => {
                     const missPct = ((1 - rate) * 100).toFixed(1);
                     donut.innerHTML = '<div class="cache-donut-flex">' +
                         '<div class="cache-donut-figure"><svg viewBox="0 0 104 104" role="img" aria-label="缓存命中率">' +
-                            '<circle class="cache-donut-seg" cx="52" cy="52" r="' + radius + '" fill="none" stroke="#10b981" stroke-width="14" ' +
+                            '<circle class="cache-donut-seg" cx="52" cy="52" r="' + radius + '" fill="none" style="stroke:var(--success)" stroke-width="14" ' +
                                 'stroke-dasharray="' + hitLen.toFixed(2) + ' ' + (circumference - hitLen).toFixed(2) + '" ' +
                                 'stroke-dashoffset="0" transform="rotate(-90 52 52)" stroke-linecap="round"></circle>' +
-                            '<circle class="cache-donut-seg" style="animation-delay:80ms" cx="52" cy="52" r="' + radius + '" fill="none" stroke="#f59e0b" stroke-width="14" ' +
+                            '<circle class="cache-donut-seg" style="animation-delay:80ms" cx="52" cy="52" r="' + radius + '" fill="none" stroke="var(--warning)" stroke-width="14" ' +
                                 'stroke-dasharray="' + missLen.toFixed(2) + ' ' + (circumference - missLen).toFixed(2) + '" ' +
                                 'stroke-dashoffset="' + (-hitArc).toFixed(2) + '" transform="rotate(-90 52 52)" stroke-linecap="round"></circle>' +
                             '<g class="donut-center">' +
@@ -3633,8 +3697,8 @@ const getAdminHtml = (options = {}) => {
                             '</g>' +
                         '</svg></div>' +
                         '<div class="cache-donut-legend">' +
-                            '<div class="cache-donut-row"><i class="cache-donut-dot" style="background:#10b981"></i><span class="cache-donut-label">命中</span><span class="cache-donut-val">' + hits + ' · ' + hitPct + '%</span></div>' +
-                            '<div class="cache-donut-row"><i class="cache-donut-dot" style="background:#f59e0b"></i><span class="cache-donut-label">未命中</span><span class="cache-donut-val">' + misses + ' · ' + missPct + '%</span></div>' +
+                            '<div class="cache-donut-row"><i class="cache-donut-dot" style="background:var(--success)"></i><span class="cache-donut-label">命中</span><span class="cache-donut-val">' + hits + ' · ' + hitPct + '%</span></div>' +
+                            '<div class="cache-donut-row"><i class="cache-donut-dot" style="background:var(--warning)"></i><span class="cache-donut-label">未命中</span><span class="cache-donut-val">' + misses + ' · ' + missPct + '%</span></div>' +
                         '</div>' +
                     '</div>';
                 }
@@ -4155,15 +4219,15 @@ const getAdminHtml = (options = {}) => {
             return pad2(date.getHours()) + '时';
         };
 
+        /** 悬停提示：明确每个点覆盖的时间区间，避免“08:00”被误读成单个小时 */
         const formatChartPointLabel = (timestamp, bucketMs) => {
             const date = new Date(timestamp);
+            const datePart = (date.getMonth() + 1) + '-' + pad2(date.getDate());
             if (bucketMs >= 24 * 60 * 60 * 1000) {
                 return date.getFullYear() + '-' + pad2(date.getMonth() + 1) + '-' + pad2(date.getDate());
             }
-            if (bucketMs >= 6 * 60 * 60 * 1000) {
-                return (date.getMonth() + 1) + '-' + pad2(date.getDate()) + ' ' + pad2(date.getHours()) + ':00';
-            }
-            return pad2(date.getHours()) + ':00';
+            const endTime = new Date(timestamp + bucketMs);
+            return datePart + ' ' + pad2(date.getHours()) + ':00–' + pad2(endTime.getHours()) + ':00';
         };
 
         const niceChartMax = (value) => {
@@ -4172,6 +4236,25 @@ const getAdminHtml = (options = {}) => {
             const normalized = value / magnitude;
             const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
             return Math.max(5, step * magnitude);
+        };
+
+        /** 把折线图图例按钮的置灰态与当前显隐状态对齐（含全部隐藏的分支） */
+        const syncLineLegendState = (hiddenSet) => {
+            const legendBox = document.getElementById('boardLineLegend');
+            if (!legendBox) return;
+            legendBox.querySelectorAll('.legend-toggle').forEach((btn) => {
+                btn.classList.toggle('is-hidden', hiddenSet.has(btn.dataset.series));
+            });
+        };
+
+        /** 图例显隐状态：chartKey -> Set(seriesKey)，点击图例切换显示 */
+        const chartHiddenSeries = new Map();
+        const isSeriesHidden = (chart, key) => chartHiddenSeries.get(chart)?.has(key) === true;
+        const toggleSeriesHidden = (chart, key) => {
+            const set = chartHiddenSeries.get(chart) || new Set();
+            if (set.has(key)) set.delete(key);
+            else set.add(key);
+            chartHiddenSeries.set(chart, set);
         };
 
         const renderBoardLineChart = (series, hours = 24) => {
@@ -4218,6 +4301,14 @@ const getAdminHtml = (options = {}) => {
                     '<text class="chart-label" x="' + (pad.l - 7) + '" y="' + (gy + 3).toFixed(1) + '" text-anchor="end" fill="#94a3b8" font-size="9">' +
                     Math.round(value) + '</text>';
             }).join('');
+            const hidden = chartHiddenSeries.get('boardLine') || new Set();
+            const showSeries = (key) => !hidden.has(key);
+            if (['total', 'success', 'error'].every((key) => !showSeries(key))) {
+                box.innerHTML = '<p class="user-info-tooltip">所有曲线已隐藏，点击图例恢复显示</p>';
+                if (note) note.textContent = '';
+                syncLineLegendState(hidden);
+                return;
+            }
 
             const tickEvery = Math.max(1, Math.ceil(list.length / 6));
             const ticks = list.map((item, index) => index).filter(index => index % tickEvery === 0);
@@ -4230,8 +4321,16 @@ const getAdminHtml = (options = {}) => {
 
             const dots = list.map((item, index) => {
                 const tip = formatChartPointLabel(item.t, bucketMs) + ' · 共 ' + item.total + ' 次 · 成功 ' + item.success + ' · 失败 ' + item.error;
-                return '<circle class="chart-dot" cx="' + x(index).toFixed(1) + '" cy="' + y(item.total || 0).toFixed(1) +
-                    '" r="2.6" fill="#fff" stroke="#3D93B8" stroke-width="2"><title>' + tip + '</title></circle>';
+                const markers = [];
+                if (item.error > 0 && showSeries('error')) {
+                    markers.push('<circle class="chart-dot" cx="' + x(index).toFixed(1) + '" cy="' + y(item.error).toFixed(1) +
+                        '" r="2.2" fill="#fff" style="stroke:var(--danger)" stroke-width="1.6"><title>' + tip + '</title></circle>');
+                }
+                if (showSeries('total')) {
+                    markers.push('<circle class="chart-dot" cx="' + x(index).toFixed(1) + '" cy="' + y(item.total || 0).toFixed(1) +
+                        '" r="2.6" fill="#fff" style="stroke:var(--primary-dark)" stroke-width="2"><title>' + tip + '</title></circle>');
+                }
+                return markers.join('');
             }).join('');
 
             const step = innerW / Math.max(1, list.length - 1);
@@ -4243,18 +4342,21 @@ const getAdminHtml = (options = {}) => {
                     '" height="' + innerH + '" fill="transparent" pointer-events="all"><title>' + tip + '</title></rect>';
             }).join('');
 
-            box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="近 24 小时请求趋势">' +
+            box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + rangeLabel + '请求趋势">' +
                 '<defs><linearGradient id="boardLineArea" x1="0" y1="0" x2="0" y2="1">' +
-                    '<stop offset="0%" stop-color="#50A8D0" stop-opacity="0.22"></stop>' +
-                    '<stop offset="100%" stop-color="#50A8D0" stop-opacity="0.01"></stop>' +
+                    '<stop offset="0%" style="stop-color:var(--primary)" stop-opacity="0.22"></stop>' +
+                    '<stop offset="100%" style="stop-color:var(--primary)" stop-opacity="0.01"></stop>' +
                 '</linearGradient></defs>' +
                 grid +
-                '<path class="chart-area" d="' + area + '" fill="url(#boardLineArea)"></path>' +
-                '<path class="chart-line chart-line-success" pathLength="1" d="' + line('success') + '" fill="none" stroke="#10b981" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>' +
-                '<path class="chart-line chart-line-error" pathLength="1" d="' + line('error') + '" fill="none" stroke="#ef4444" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>' +
-                '<path class="chart-line chart-line-total" pathLength="1" d="' + line('total') + '" fill="none" stroke="#3D93B8" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></path>' +
+                (showSeries('total') ? '<path class="chart-area" d="' + area + '" fill="url(#boardLineArea)"></path>' : '') +
+                (showSeries('success') ? '<path id="chartLineSuccess" class="chart-line chart-line-success" pathLength="1" d="' + line('success') + '" fill="none" style="stroke:var(--success)" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>' : '') +
+                (showSeries('error') ? '<path id="chartLineError" class="chart-line chart-line-error" d="' + line('error') + '" fill="none" style="stroke:var(--danger)" stroke-width="1.6" stroke-dasharray="4 3" stroke-linejoin="round" stroke-linecap="round"></path>' : '') +
+                (showSeries('total') ? '<path id="chartLineTotal" class="chart-line chart-line-total" pathLength="1" d="' + line('total') + '" fill="none" style="stroke:var(--primary-dark)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></path>' : '') +
                 dots + hitAreas + xLabels +
                 '</svg>';
+
+            // 同步图例按钮的启用/禁用态
+            syncLineLegendState(hidden);
 
             if (note) {
                 const peak = list.reduce((best, item) => (item.total > best.total ? item : best), list[0]);
@@ -4266,47 +4368,75 @@ const getAdminHtml = (options = {}) => {
         const renderBoardDonut = (byType, hours = 24) => {
             const box = document.getElementById('boardDonut');
             if (!box) return;
-            const entries = Object.entries(byType || {})
+            const hidden = chartHiddenSeries.get('boardDonut') || new Set();
+            const all = Object.entries(byType || {})
                 .map(([key, count]) => ({ key, label: typeLabel(key), count: Number(count) || 0 }))
                 .filter(item => item.count > 0)
                 .sort((a, b) => b.count - a.count);
-            const total = entries.reduce((sum, item) => sum + item.count, 0);
+            const total = all.reduce((sum, item) => sum + item.count, 0);
             if (!total) {
-                box.innerHTML = '<p class="user-info-tooltip">近 24 小时暂无调用</p>';
+                box.innerHTML = '<p class="user-info-tooltip">' + dashboardRangeLabel(hours) + '暂无调用</p>';
+                return;
+            }
+            const visible = all.filter(item => !hidden.has(item.key));
+            const visibleTotal = visible.reduce((sum, item) => sum + item.count, 0);
+            if (!visibleTotal) {
+                // 全部禁用时保留图例可点回，中心提示
+                const legend = renderDonutLegend(all, all[0], total, hours);
+                box.innerHTML = '<div class="donut-flex"><div class="donut-figure">' +
+                    '<svg viewBox="0 0 140 140" role="img" aria-label="请求类型占比">' +
+                        '<circle cx="70" cy="70" r="54" fill="none" stroke="var(--border-light)" stroke-width="18"></circle>' +
+                        '<g class="donut-center"><text x="70" y="66" text-anchor="middle" style="fill:var(--text)" font-size="13" font-weight="600">已全部隐藏</text></g>' +
+                    '</svg></div><div class="donut-legend">' + legend + '</div></div>';
                 return;
             }
             const radius = 54;
             const circumference = 2 * Math.PI * radius;
             let cursor = 0;
-            const segments = entries.map((item, index) => {
-                const fraction = item.count / total;
+            const segments = visible.map((item) => {
+                const index = all.indexOf(item);
+                const fraction = item.count / visibleTotal;
                 const arc = fraction * circumference;
-                const gap = entries.length > 1 ? 2.4 : 0;
+                const gap = visible.length > 1 ? 2.4 : 0;
                 const length = Math.max(0.8, arc - gap);
                 const color = CHART_COLORS[index % CHART_COLORS.length];
-                const segment = '<circle class="donut-seg" style="animation-delay:' + (index * 60) + 'ms" cx="70" cy="70" r="' + radius + '" fill="none" stroke="' + color + '" stroke-width="18" ' +
+                const segment = '<circle class="donut-seg" data-series="' + escapeHtml(item.key) + '" style="animation-delay:' + (index * 60) + 'ms" cx="70" cy="70" r="' + radius + '" fill="none" stroke="' + color + '" stroke-width="18" ' +
                     'stroke-dasharray="' + length.toFixed(2) + ' ' + (circumference - length).toFixed(2) + '" ' +
                     'stroke-dashoffset="' + (-cursor).toFixed(2) + '" transform="rotate(-90 70 70)" stroke-linecap="round">' +
-                    '<title>' + escapeHtml(item.label) + ' · ' + item.count + ' 次 · ' + (fraction * 100).toFixed(1) + '%</title></circle>';
+                    '<title>' + escapeHtml(item.label) + ' · ' + item.count + ' 次 · ' + (fraction * 100).toFixed(1) + '%（占全部 ' + ((item.count / total) * 100).toFixed(1) + '%）</title></circle>';
                 cursor += arc;
                 return segment;
             }).join('');
-            const legend = entries.map((item, index) => {
-                const color = CHART_COLORS[index % CHART_COLORS.length];
-                const pct = ((item.count / total) * 100).toFixed(1);
-                return '<div class="donut-legend-row" style="animation-delay:' + (120 + index * 55) + 'ms">' +
-                    '<i class="donut-dot" style="background:' + color + '"></i>' +
-                    '<span class="donut-label">' + escapeHtml(item.label) + '</span>' +
-                    '<span class="donut-val">' + item.count + ' · ' + pct + '%</span></div>';
-            }).join('');
+            const top = all[0];
+            const legend = renderDonutLegend(all, top, total, hours);
             box.innerHTML = '<div class="donut-flex"><div class="donut-figure">' +
                 '<svg viewBox="0 0 140 140" role="img" aria-label="请求类型占比">' + segments +
                     '<g class="donut-center">' +
-                        '<text x="70" y="66" text-anchor="middle" style="fill:var(--text)" font-size="22" font-weight="700">' + total + '</text>' +
-                        '<text x="70" y="84" text-anchor="middle" style="fill:var(--text-muted)" font-size="10">' + dashboardRangeShort(hours) + ' 次调用</text>' +
+                        '<text x="70" y="64" text-anchor="middle" style="fill:var(--text)" font-size="20" font-weight="700">' + visibleTotal + '</text>' +
+                        '<text x="70" y="80" text-anchor="middle" style="fill:var(--text-muted)" font-size="9">' + dashboardRangeShort(hours) + ' 调用</text>' +
+                        '<text x="70" y="94" text-anchor="middle" style="fill:var(--text-muted)" font-size="8">最多 ' + escapeHtml(top.label) + ' ' + ((top.count / total) * 100).toFixed(0) + '%</text>' +
                     '</g>' +
                 '</svg></div><div class="donut-legend">' + legend + '</div></div>';
         };
+
+        const renderDonutLegend = (all, top, total, hours) => {
+            const hidden = chartHiddenSeries.get('boardDonut') || new Set();
+            return all.map((item, index) => {
+                const color = CHART_COLORS[index % CHART_COLORS.length];
+                const pct = ((item.count / total) * 100).toFixed(1);
+                const isHidden = hidden.has(item.key);
+                return '<button type="button" class="donut-legend-row donut-toggle' + (isHidden ? ' is-hidden' : '') + '" data-chart="boardDonut" data-series="' + escapeHtml(item.key) + '" title="点击显示/隐藏该类型">' +
+                    '<i class="donut-dot" style="background:' + color + '"></i>' +
+                    '<span class="donut-label">' + escapeHtml(item.label) + (item.key === top.key ? ' <em class="donut-top-tag">最多</em>' : '') + '</span>' +
+                    '<span class="donut-val">' + item.count + ' · ' + pct + '%</span></button>';
+            }).join('');
+        };
+
+        /** 保存最近一次图表数据，图例切换显隐时无需重新请求 */
+        let lastLineSeries = [];
+        let lastLineHours = 24;
+        let lastDonutData = {};
+        let lastDonutHours = 24;
 
         const loadDashboard = async () => {
             const range = Number(document.getElementById('dashboardRange')?.value) || 24;
@@ -4356,8 +4486,12 @@ const getAdminHtml = (options = {}) => {
 
             // 趋势折线图 + 请求类型饼图（跟随顶部数据范围）
             const series = seriesRes?.success ? seriesRes.data : [];
+            lastLineSeries = series;
+            lastLineHours = range;
+            lastDonutData = stats?.byType || {};
+            lastDonutHours = range;
             renderBoardLineChart(series, range);
-            renderBoardDonut(stats?.byType || {}, range);
+            renderBoardDonut(lastDonutData, range);
 
             const sources = document.getElementById('boardSources');
             if (sources) {
@@ -4749,6 +4883,21 @@ const getAdminHtml = (options = {}) => {
             }
         };
 
+        // 图例点击显隐：折线图与饼图共用一套委托
+        document.addEventListener('click', (event) => {
+            const btn = event.target.closest('.legend-toggle, .donut-toggle');
+            if (!btn) return;
+            const chart = btn.dataset.chart;
+            const series = btn.dataset.series;
+            if (!chart || !series) return;
+            toggleSeriesHidden(chart, series);
+            if (chart === 'boardLine') {
+                renderBoardLineChart(lastLineSeries, lastLineHours);
+            } else if (chart === 'boardDonut') {
+                renderBoardDonut(lastDonutData, lastDonutHours);
+            }
+        });
+
         document.getElementById('apiLogsList').addEventListener('click', (event) => {
             const moreBtn = event.target.closest('button[data-more-ip]');
             if (moreBtn) {
@@ -4891,7 +5040,7 @@ const getAdminHtml = (options = {}) => {
             if (modal) modal.classList.add('show');
         };
 
-        const openApiLogsForReferer = (host) => {
+        const openApiLogsForReferer = async (host) => {
             const hours = Number(document.getElementById('refererHours')?.value) || 24;
             const since = Date.now() - hours * 60 * 60 * 1000;
             document.getElementById('apiLogStartTime').value = toDateTimeLocal(since);
@@ -4902,7 +5051,16 @@ const getAdminHtml = (options = {}) => {
             document.getElementById('apiLogType').value = '';
             document.getElementById('apiLogStatus').value = '';
             document.getElementById('apiLogKeyword').value = '';
-            switchSection('apilogs');
+            // 手动切换到 API 日志页并加载一次（不经过 switchSection，避免它重复加载来源统计）
+            document.querySelectorAll('.sidebar-menu li').forEach(li => li.classList.toggle('active', li.dataset.section === 'apilogs'));
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+            document.getElementById('apilogsSection').classList.add('active');
+            document.getElementById('pageTitle').textContent = 'API 调用日志';
+            await loadApiLogs(1);
+            const target = document.getElementById('apiLogsList')?.closest('.card');
+            if (target?.scrollIntoView) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         };
 
         document.getElementById('refererList').addEventListener('click', (event) => {
@@ -5061,9 +5219,29 @@ const getAdminHtml = (options = {}) => {
             }
         };
 
-        const exportApiLogs = () => {
+        const exportApiLogs = async () => {
             const filters = getApiLogFilters();
-            window.open('/admin/api-logs/export?' + apiLogFilterParams(filters).toString(), '_blank');
+            // 导出走浏览器导航请求时不会带 X-Auth-* 头，必须用 fetch 下载后再触发保存
+            try {
+                const res = await fetch('/admin/api-logs/export?' + apiLogFilterParams(filters).toString(), {
+                    headers: { 'X-Auth-Username': authUsername, 'X-Auth-Token': authToken },
+                });
+                if (!res.ok) {
+                    const body = await res.json().catch(() => ({}));
+                    showToast(body?.error || '导出失败（HTTP ' + res.status + '）', 'error');
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'api-logs-' + new Date().toISOString().slice(0, 10) + '.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('CSV 已开始下载');
+            } catch (e) {
+                showToast('导出失败: ' + (e?.message || e), 'error');
+            }
         };
 
         const clearApiLogs = async () => {

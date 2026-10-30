@@ -155,9 +155,28 @@ describe('仪表盘图表与来源详情', () => {
         expect(html).toContain('renderBoardDonut')
         expect(html).toContain('legend-total')
         expect(html).toContain('donut-legend')
+        // 图例可点击显隐
+        expect(html).toContain('legend-toggle')
+        expect(html).toContain('donut-toggle')
+        expect(html).toContain('toggleSeriesHidden')
+        expect(html).toContain('data-chart="boardLine"')
+        expect(html).toContain('data-chart="boardDonut"')
         expect(html).toContain('@keyframes chartDraw')
         expect(html).toContain("class=\"chart-line")
         expect(html).toContain('donut-seg')
+        // 折线颜色必须用 CSS 变量，保证与图例色块（同为变量）在任何主题下一致
+        expect(html).toContain('style="stroke:var(--success)"')
+        expect(html).toContain('style="stroke:var(--danger)"')
+        expect(html).toContain('style="stroke:var(--primary-dark)"')
+        expect(html).not.toMatch(/chart-line[^>]*stroke="#/)
+        // 悬停/峰值提示必须用时间区间，避免 6 小时桶被误读成单个小时
+        expect(html).toContain("':00–'")
+        // 全部隐藏时也必须同步图例置灰态（guard 分支复用同一个同步函数）
+        expect(html).toContain('syncLineLegendState(hidden)')
+        // 图例数值列固定宽度右对齐，各行的「次数 · 占比」落在同一竖线
+        expect(html).toContain('.donut-val')
+        expect(html).toContain('min-width: 76px')
+        expect(html).toContain('text-align: right')
     })
 
     it('来源分析用模态框展示详情并按来源筛选调用', () => {
@@ -180,6 +199,19 @@ describe('仪表盘图表与来源详情', () => {
         expect(html).toContain('renderCacheCharts')
         expect(html).toContain('cache-donut-seg')
         expect(html).toContain('cache-ttl-fill')
+    })
+
+    it('API 日志导出走带认证头的 fetch 下载', () => {
+        // window.open 的导航请求不带 X-Auth-* 头，必须用 fetch + blob
+        expect(html).not.toContain("window.open('/admin/api-logs/export")
+        expect(html).toContain("fetch('/admin/api-logs/export")
+        expect(html).toContain("'X-Auth-Username': authUsername")
+        expect(html).toContain('createObjectURL')
+    })
+
+    it('来源详情跳转会手动切视图并滚动到日志列表', () => {
+        expect(html).toContain('手动切换到 API 日志页并加载一次')
+        expect(html).toContain("scrollIntoView({ behavior: 'smooth', block: 'start' })")
     })
 
     it('通知使用卡片式浅底而不是纯色背景', () => {
