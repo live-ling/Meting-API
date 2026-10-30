@@ -936,9 +936,12 @@ code {
   scrollbar-color: var(--line-strong) transparent;
 }
 
-/* WebKit 下的滚动条：细、低调，悬停才显色 */
+/* WebKit 下的滚动条：细、低调，悬停才显色。
+   必须显式 display: block：顶部全局 *::-webkit-scrollbar { display: none }
+   会盖住这里，只设 width 不会让滚动条重新出现。 */
 .lyr-scroll::-webkit-scrollbar {
   width: 5px;
+  display: block;
 }
 
 .lyr-scroll::-webkit-scrollbar-track {

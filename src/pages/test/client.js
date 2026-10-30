@@ -7,9 +7,11 @@
  * 所以函数体不能引用任何模块作用域的名字，只能用参数 core / doc / env。
  *
  * 以下契约在重构中保持不变：
- * - 首屏不发任何请求，只有点「载入」/ 预设档案 / 播放才进入调度器；
- * - 全页共享一个 Audio，preload='none'，切歌不自动播放，播放结束不自动下一首；
+ * - 首屏自动加载默认数据源（网易云歌单 2877205781）；换源 / 重载都会先停掉当前播放；
+ * - 全页共享一个 Audio，preload='none'，切歌不自动播放；连播：一首播完自动切下一首，
+ *   最后一首播完停在当前曲，由用户手动处理；
  * - 请求串行 + 同 URL 去重 + 有界缓存；HTTP 429 只冷却，永不自动重试；
+ * - 冷却与超时只写工作台状态，不再用顶部常驻状态条；
  * - 歌词按 currentTime 二分高亮并滚动居中，点击歌词行跳转。
  *
  * DOM 契约（重构后）：
@@ -31,19 +33,13 @@ export function mountTestPage(core, doc = document, env = window) {
     let storage
     try { storage = env.sessionStorage } catch { /* 隐私模式下可能不可用，退化为内存冷却 */ }
 
-    const banner = doc.querySelector('#request-status')
-    const scheduler = core.createScheduler({ fetcher: env.fetch.bind(env), storage, onCooldown: updateCooldown })
+    const scheduler = core.createScheduler({ fetcher: env.fetch.bind(env), storage })
 
-    /** 顶部状态条（已随页面精简移除）：存在才写，避免整页报错。 */
-    function updateCooldown() {
-        if (!banner) return
-        banner.textContent = scheduler.blocked()
-            ? '触发限流（429）· 冷却还剩 ' + Math.ceil((scheduler.cooldown - Date.now()) / 1000) +
-              ' 秒 · 到期后请手动再试'
-            : '按需加载 · 两次请求至少隔 1.5 秒 · 出错不自动重试'
+    /** 429 冷却剩余秒数文案：只写工作台状态，不再用顶部常驻状态条。 */
+    function cooldownMessage() {
+        return '请求冷却中（429），还剩 ' + Math.ceil((scheduler.cooldown - Date.now()) / 1000) +
+            ' 秒；到期后请手动重试，不会自动重试。'
     }
-    updateCooldown()
-    env.setInterval(updateCooldown, 1000)
 
     /** 写工作台底部状态文案。 */
     function status(card, message) { card.status.textContent = message }
@@ -51,10 +47,12 @@ export function mountTestPage(core, doc = document, env = window) {
     /** 播放中的视觉状态：唱片旋转、唱臂摆入、按钮文案、aria-pressed。 */
     function visual(playing) {
         if (!active) return
+        const track = active.songs[active.index]
+        if (!track) return
         active.root.classList.toggle('is-playing', playing)
         active.play.textContent = playing ? '暂停' : '播放'
         active.play.setAttribute('aria-pressed', playing ? 'true' : 'false')
-        active.play.setAttribute('aria-label', (playing ? '暂停 ' : '播放 ') + active.songs[active.index].name)
+        active.play.setAttribute('aria-label', (playing ? '暂停 ' : '播放 ') + track.name)
     }
 
     /** 彻底停止：中止请求、暂停音频、清掉 src 与封面临时地址。 */
@@ -264,7 +262,7 @@ export function mountTestPage(core, doc = document, env = window) {
             status(card, '已暂停')
             return
         }
-        if (scheduler.blocked()) { status(card, '请求冷却中，暂不发起播放。'); return }
+        if (scheduler.blocked()) { status(card, cooldownMessage()); return }
         const token = generation
         playPending = true
         status(card, '准备播放…')
@@ -308,7 +306,7 @@ export function mountTestPage(core, doc = document, env = window) {
         const token = generation
         await selection
         if (active !== card || generation !== token) return
-        if (scheduler.blocked()) { status(card, '请求冷却中，暂不发起播放。'); return }
+        if (scheduler.blocked()) { status(card, cooldownMessage()); return }
         playPending = true
         status(card, '准备播放…')
         try {
@@ -433,6 +431,14 @@ export function mountTestPage(core, doc = document, env = window) {
         root.dataset.server = server
         root.dataset.type = type
         root.dataset.id = id
+        // 展示名跟着选中项走：直接从对应 chip 的文案取，
+        // 避免在 client.js 里再复制一份 platforms.js 的映射。
+        const chipLabel = input => {
+            const text = input?.closest('.chip')?.querySelector('.chip-text')?.textContent
+            return (text || '').trim()
+        }
+        root.dataset.serverLabel = chipLabel(hit) || server
+        root.dataset.typeLabel = chipLabel(types.find(input => input.value === type)) || type
         const query = 'server=' + encodeURIComponent(server) + '&type=' + encodeURIComponent(type) +
             '&id=' + encodeURIComponent(id)
         urlPreview.textContent = 'GET ' + '/api?' + query
@@ -465,15 +471,49 @@ export function mountTestPage(core, doc = document, env = window) {
         return row
     }
 
-    /** 载入当前数据源的曲目列表（唯一的请求入口，只在用户操作后触发）。 */
+    /** 曲目单空态占位。 */
+    function emptyListNote() {
+        const note = doc.createElement('p')
+        note.className = 'plist-empty'
+        note.textContent = '载入后，这里的歌会列出来。'
+        return note
+    }
+
+    /** 载入当前数据源的曲目列表（唯一请求入口：首屏自动加载，之后由用户操作触发）。 */
     async function load() {
-        if (scheduler.blocked()) { status(card, '请求冷却中，请稍后手动加载。'); return }
+        if (scheduler.blocked()) { status(card, cooldownMessage()); return }
+        // 换源 / 重载前先停掉当前播放并清空工作台，避免旧曲目继续出声或残留界面。
+        stop()
+        // 用 generation 丢弃过期响应：load 期间用户切歌 / 再加载都会让 token 失效。
+        const token = generation
+        card.index = 0
+        card.songs = []
+        card.lines = []
+        card.lineIndex = -1
+        card.title.textContent = '还没载入曲目'
+        card.artist.textContent = (root.dataset.serverLabel || root.dataset.server) + ' · ' +
+            (root.dataset.typeLabel || root.dataset.type)
+        card.cover.removeAttribute('src')
+        card.cover.hidden = true
+        card.coverNote.textContent = '封面也是接口返回的'
+        card.play.disabled = true
+        card.play.textContent = '播放'
+        card.play.setAttribute('aria-pressed', 'false')
+        card.prev.disabled = true
+        card.next.disabled = true
+        card.seek.disabled = true
+        card.seek.value = '0'
+        card.time.textContent = '0:00 / 0:00'
+        card.lyrics.textContent = '载入后，这里的歌会列出来。'
+        card.list.replaceChildren(emptyListNote())
+        trackCounts.forEach(node => { node.textContent = '' })
         card.load.disabled = true
         status(card, '排队加载接口数据…')
         try {
             const url = new URL('/api', env.location.origin)
             for (const key of ['server', 'type', 'id']) url.searchParams.set(key, root.dataset[key])
             const data = await scheduler.request(url.href)
+            if (token !== generation) return
             if (!Array.isArray(data)) throw new Error('接口响应不是曲目数组')
             card.songs = data
                 .filter(x => x && typeof x === 'object')
@@ -491,13 +531,17 @@ export function mountTestPage(core, doc = document, env = window) {
                 card.index = 0
                 card.title.textContent = card.songs[0].name
                 card.artist.textContent = card.songs[0].artist
-                card.play.disabled = false
+                card.play.disabled = !card.songs[0].url
                 card.prev.disabled = true
                 card.next.disabled = card.songs.length < 2
                 card.lyrics.textContent = '点击播放时加载当前曲目的歌词与封面；切歌不会自动播放。'
                 highlight(card, 0)
             }
-        } catch (error) { status(card, error.message); card.load.disabled = false }
+        } catch (error) {
+            if (token !== generation) return
+            card.load.disabled = false
+            status(card, scheduler.blocked() ? cooldownMessage() : error.message)
+        }
     }
 
     // ── 音量：一个 range + 静音按钮 ─────────────────────────────
@@ -548,7 +592,13 @@ export function mountTestPage(core, doc = document, env = window) {
         const type = button.dataset.presetType
         const id = button.dataset.presetId
         const serverInput = servers.find(input => input.value === server)
-        if (serverInput && !serverInput.disabled) serverInput.checked = true
+        // 平台当前不可用时不能静默沿用上一个平台，否则会拿别的平台去发请求。
+        if (serverInput?.disabled) {
+            setDrawer(false)
+            status(card, '预设平台当前不可用，请换一个数据源。')
+            return
+        }
+        if (serverInput) serverInput.checked = true
         const typeInput = types.find(input => input.value === type)
         if (typeInput) typeInput.checked = true
         idInput.value = id

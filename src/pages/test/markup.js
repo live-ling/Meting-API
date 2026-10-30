@@ -13,7 +13,7 @@ import { readCapabilities } from '../home/capabilities.js'
  * - 换源控件用 `data-source-ui`：server / type / id / url / descriptor / preset /
  *   trackCount / drawer / drawerOpen / drawerSource / drawerClose / drawerBackdrop；
  * - 抽屉内用 `data-drawer-tab-btn` 切换「队列 / 换源」；
- * - 首屏没有任何已加载数据，也不发起请求。
+ * - 首屏由 client.js 自动加载默认数据源（换源 / 重载都会先停掉当前播放）。
  */
 
 const LIST_TYPES = ['song', 'playlist', 'album', 'artist', 'search']
@@ -134,12 +134,16 @@ export function renderPlayerCard({ source, capabilities, data }) {
     const platform = escapeHtml(platformNames[source.server] || source.server)
     const label = escapeHtml(typeNames[source.type] || source.type)
     return `<article class="player" data-drawer-tab="queue"
-    data-server="${escapeHtml(source.server)}" data-type="${escapeHtml(source.type)}" data-id="${escapeHtml(source.id)}">
+    data-server="${escapeHtml(source.server)}"
+    data-server-label="${escapeHtml(platformNames[source.server] || source.server)}"
+    data-type="${escapeHtml(source.type)}"
+    data-type-label="${escapeHtml(typeNames[source.type] || source.type)}"
+    data-id="${escapeHtml(source.id)}">
 
   <section class="deck" aria-label="播放控制">
     <div class="kicker">
       <span class="bar" aria-hidden="true"></span>
-      <span class="kicker-text" data-ui="status">尚未请求接口 · 点右上角「换源」挑一个数据源</span>
+      <span class="kicker-text" data-ui="status">正在加载默认数据源…</span>
       <span class="dot" aria-hidden="true"></span>
     </div>
 
