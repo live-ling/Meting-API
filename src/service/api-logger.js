@@ -91,14 +91,9 @@ const hydrateCachedGeo = () => {
 hydrateCachedGeo()
 
 // === IP 获取 ===
-
-const getClientIP = (c) => {
-    const forwarded = c?.req?.header('X-Forwarded-For')
-    if (forwarded) {
-        return forwarded.split(',')[0].trim()
-    }
-    return c?.req?.header('X-Real-IP') || 'unknown'
-}
+// 与 middleware/abuse-detector.js 共用同一套解析（受信代理 + 内网地址过滤），
+// 保证日志统计和风控看到的是同一个身份。
+import { getClientIP } from '../middleware/abuse-detector.js'
 
 // === 歌曲信息提取 ===
 

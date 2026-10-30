@@ -35,12 +35,26 @@ const DEFAULT_CONFIG = {
     quota: {
         enabled: true,
         searchDailyLimit: 300,
+        // 来源未知（unknown）请求的全局共享配额：所有无法归因到公网 IP
+        // 的请求共用一个池子。正常浏览器访客必然携带公网转发头，不会落进
+        // 这个桶；落进来的基本是伪造内网头的攻击者，让他们互相挤占即可。
+        // 本地内网部署（页面与 API 同源、无代理）的用户也会落进此桶，
+        // 单人使用远低于该额度；多设备重度使用可在后台调高或关闭。
+        unknownSharedDailyLimit: 200,
     },
     blockedUserAgents: ['YisouSpider'],
     whitelist: {
         paths: ['/health', '/favicon.ico', '/', '/test'],
         ips: [],
     },
+    // 受信代理（CDN / 反代）出口网段。X-Forwarded-For 链中从左往右
+    // 遇到的第一个「不属于受信代理」的地址才算客户端 IP；
+    // 任何客户端都能伪造 XFF 前置内网地址，但伪造段落不到受信网段里，
+    // 就会被这条规则自然跳过。
+    trustedProxies: [
+        '103.151.172.0/23',   // CDN 出口（见 access log XFF 尾列）
+        '104.28.128.0/19',    // Cloudflare 段（日志中常见 104.28.x.x）
+    ],
 }
 
 const SUSPICIOUS_PATTERNS = [
@@ -104,11 +118,20 @@ const matchBlockedUserAgent = (userAgent, config) => {
     }) || ''
 }
 
-/** 消耗一次 search 日配额；返回 null 表示放行，否则返回需要等待的秒数 */
+/**
+ * 消耗一次 search 日配额；返回 null 表示放行，否则返回需要等待的秒数。
+ * ip 为 'unknown' 时使用全局共享桶与独立的更小额度（见 DEFAULT_CONFIG.quota）。
+ */
+const UNKNOWN_QUOTA_KEY = '__unknown__'
+
 const consumeSearchQuota = (ip, config, now) => {
     if (config.quota?.enabled === false) return null
-    const limit = Number(config.quota?.searchDailyLimit ?? DEFAULT_CONFIG.quota.searchDailyLimit)
+    const isUnknown = !ip || ip === 'unknown'
+    const limit = Number(isUnknown
+        ? (config.quota?.unknownSharedDailyLimit ?? DEFAULT_CONFIG.quota.unknownSharedDailyLimit)
+        : (config.quota?.searchDailyLimit ?? DEFAULT_CONFIG.quota.searchDailyLimit))
     if (!Number.isFinite(limit) || limit <= 0) return null
+    if (isUnknown) ip = UNKNOWN_QUOTA_KEY
 
     const today = dayKey(now)
     let record = searchQuota.get(ip)
@@ -150,14 +173,97 @@ const loadBannedIPs = () => {
 let lastCleanup = 0
 const CLEANUP_INTERVAL = 5 * 60 * 1000
 
+// === 客户端 IP 解析（防伪） ===
+//
+// 攻击场景：客户端直接连源站，伪造 `X-Forwarded-For: 192.168.x.x`，
+// 旧逻辑盲信链首 → 风控计数、封禁、地理统计全部记在一个内网地址上，
+// 真实来源完全隐身。
+//
+// 解决思路（对「本地内网网页听歌」用户零误伤）：
+// 1. 私网/保留地址永远不可能是公网访客 → 解析时跳过，只作标记；
+// 2. 同时跳过「受信代理」网段（CDN/反代出口）；
+// 3. 取 XFF 链从左到右第一个「公网且不受信」的地址；
+// 4. 链上全是私网/受信地址（本地内网部署：页面和 API 同源，浏览器
+//    不会主动加 XFF，最多只有本机代理加的私网地址）→ 返回 'unknown'，
+//    按已有的 unknown 策略放行不计数。
+//
+// 本地用户浏览器直连（同源 fetch）根本不发 XFF，走 X-Real-IP / unknown
+// 分支，行为与升级前完全一致。
+
+/** IPv4 转 32 位整数；非法输入返回 null */
+const ipv4ToInt = (ip) => {
+    const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(ip).trim())
+    if (!m) return null
+    let v = 0
+    for (let i = 1; i <= 4; i++) {
+        const n = Number(m[i])
+        if (n > 255) return null
+        v = v * 256 + n
+    }
+    return v >>> 0
+}
+
+/** CIDR 匹配（仅 IPv4；IPv6 私网前缀单独处理） */
+const cidrMatch = (ip, cidr) => {
+    const [base, bitsRaw] = String(cidr).split('/')
+    const bits = Number(bitsRaw)
+    const ipInt = ipv4ToInt(ip)
+    const baseInt = ipv4ToInt(base)
+    if (ipInt === null || baseInt === null || !Number.isInteger(bits) || bits < 0 || bits > 32) return false
+    const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0
+    return (ipInt & mask) === (baseInt & mask)
+}
+
+/**
+ * 私网 / 保留 / 不可路由地址。公网访客不可能落在这些段里，
+ * 出现在 XFF 里只能说明：a) 伪造；b) 客户端自己过了层家用/内网代理。
+ * 两种情况都不该拿它当风控身份。
+ */
+const isPrivateOrReserved = (ip) => {
+    if (!ip) return true
+    const lower = String(ip).trim().toLowerCase()
+    // IPv6：loopback / link-local / ULA / 未指定
+    if (lower.includes(':')) {
+        return lower === '::1' || lower === '::' ||
+            lower.startsWith('fe80:') || lower.startsWith('fc') || lower.startsWith('fd')
+    }
+    return [
+        '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16',   // RFC1918
+        '127.0.0.0/8',                                       // loopback
+        '169.254.0.0/16',                                    // link-local
+        '100.64.0.0/10',                                     // CGNAT
+        '0.0.0.0/8', '224.0.0.0/4', '240.0.0.0/4',           // 本机/组播/保留
+    ].some(cidr => cidrMatch(lower, cidr))
+}
+
+// 列表很短（个位数 CIDR），每请求现取即可，避免后台改配置后缓存过期的问题
+const getTrustedProxies = () => {
+    const config = getEffectiveAbuseConfig()
+    const list = Array.isArray(config.trustedProxies) ? config.trustedProxies : DEFAULT_CONFIG.trustedProxies
+    return list.filter(Boolean)
+}
+
 export const getClientIP = (c) => {
     const forwarded = c.req.header('X-Forwarded-For')
     if (forwarded) {
-        const ips = forwarded.split(',').map(s => s.trim())
-        return ips[0] || 'unknown'
+        const trusted = getTrustedProxies()
+        const ips = forwarded.split(',').map(s => s.trim()).filter(Boolean)
+        // 从左到右找第一个「公网且不属于受信代理」的地址
+        for (const ip of ips) {
+            if (isPrivateOrReserved(ip)) continue
+            if (trusted.some(cidr => cidrMatch(ip, cidr))) continue
+            return ip
+        }
+        // 链上全是私网/受信地址：无法归因到公网来源，按 unknown 处理
+        return 'unknown'
     }
-    return c.req.header('X-Real-IP') || 'unknown'
+    const realIp = c.req.header('X-Real-IP')
+    if (realIp && !isPrivateOrReserved(realIp)) return realIp.trim()
+    // 本地内网部署：没有可用的公网身份 → unknown（放行不计数，见中间件注释）
+    return 'unknown'
 }
+
+export { isPrivateOrReserved }
 
 const isWhitelisted = (path, ip, config) => {
     if (config.whitelist?.paths?.some(p => path === p || path.startsWith(p + '/'))) return true
@@ -412,14 +518,39 @@ export const abuseDetectorMiddleware = async (c, next) => {
     const path = c.req.path
 
     /*
-     * 拿不到真实 IP（本地开发、某些反代没透传 X-Forwarded-For）时，
-     * 所有访问都会记到同一个 'unknown' 桶上——本机随便点几下就能把
-     * 整个本地环境封掉，而封禁理由却记在一个无法归因的名字上。
-     * 这里对 'unknown' 只放行、不计数、不封禁：宁可漏掉一个来源不明的
-     * 攻击，也不能因为识别不出来源就误伤所有人。
+     * 拿不到真实 IP 时（本地内网部署、或攻击者伪造全内网转发头）：
+     * - 不做 QPS 计数与封禁——否则一个伪造内网头的攻击者会把 unknown
+     *   桶打到阈值，连带封掉所有真正来源未知的本地用户；
+     * - 但 search 接口走「全局共享日配额」（quota.unknownSharedDailyLimit），
+     *   攻击者刷 search 会自己把共享池耗尽，而单人本地使用远低于该额度。
+     * 生产环境（公网访问、浏览器访客经反代携带转发头）正常用户不会
+     * 落入此分支；落入的基本是伪造头的攻击者。
      */
     if (!ip || ip === 'unknown') {
-        c.set('clientIP', ip || 'unknown')
+        c.set('clientIP', 'unknown')
+        const isApiPath = path === '/api' || path.startsWith('/api/')
+        if (isApiPath && !isAdminPath(path) &&
+            new URL(c.req.url).searchParams.get('type') === 'search') {
+            const retryAfter = consumeSearchQuota('unknown', config, Date.now())
+            if (retryAfter !== null) {
+                const limit = Number(config.quota?.unknownSharedDailyLimit ?? DEFAULT_CONFIG.quota.unknownSharedDailyLimit)
+                await store.addAbuseLog({
+                    ip: 'unknown',
+                    path,
+                    method: c.req.method,
+                    level: 'medium',
+                    reason: 'search_unknown_shared_quota',
+                    violations: [],
+                    userAgent: c.req.header('User-Agent') || '',
+                    blocked: true,
+                }).catch(() => {})
+                return c.json({
+                    error: 'Too Many Requests',
+                    message: `匿名来源 search 共享配额已用尽（${limit} 次/日），请在次日 00:00 后重试`,
+                    retryAfter,
+                }, 429, { 'Retry-After': String(retryAfter) })
+            }
+        }
         return await next()
     }
 
