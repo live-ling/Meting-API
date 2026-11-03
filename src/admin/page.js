@@ -2279,6 +2279,7 @@ const getAdminHtml = (options = {}) => {
                         <div class="kpi"><div class="kpi-label">有效 Cookie</div><div class="kpi-value" id="kpiCookies">-</div><div class="kpi-sub" id="kpiCookiesSub">有效 / 总数</div></div>
                         <div class="kpi"><div class="kpi-label">封禁 IP</div><div class="kpi-value" id="kpiBans">-</div><div class="kpi-sub">当前生效</div></div>
                         <div class="kpi"><div class="kpi-label">来源站点</div><div class="kpi-value" id="kpiSources">-</div><div class="kpi-sub" id="kpiSourcesSub">近 24 小时</div></div>
+                        <div class="kpi"><div class="kpi-label">缓存命中率</div><div class="kpi-value" id="kpiCacheHitRate">-</div><div class="kpi-sub" id="kpiCacheHitRateSub">命中 / 未命中</div></div>
                     </div>
 
                     <div class="board-grid">
@@ -3888,6 +3889,7 @@ const getAdminHtml = (options = {}) => {
 
         let abuseLogCurrentPage = 1;
         let abuseLogTotalPages = 1;
+        let abuseLogTotalCount = 0;
 
         const getAbuseLogFilters = () => ({
             startTime: document.getElementById('abuseLogStartTime').value,
@@ -3951,7 +3953,7 @@ const getAdminHtml = (options = {}) => {
         };
 
         const updateAbusePagination = () => {
-            document.getElementById('abuseLogTotalCount').textContent = '...';
+            document.getElementById('abuseLogTotalCount').textContent = abuseLogTotalCount;
             document.getElementById('abuseLogCurrentPage').textContent = abuseLogCurrentPage;
             document.getElementById('abuseLogTotalPages').textContent = abuseLogTotalPages;
             document.getElementById('abuseLogPageInfo').textContent = abuseLogCurrentPage;
@@ -3974,7 +3976,8 @@ const getAdminHtml = (options = {}) => {
             window._abuseLogs = items;
             abuseLogTotalPages = res.data.totalPages || 1;
             abuseLogCurrentPage = res.data.page || 1;
-            document.getElementById('abuseLogTotalCount').textContent = total;
+            abuseLogTotalCount = total || 0;
+            document.getElementById('abuseLogTotalCount').textContent = abuseLogTotalCount;
             const tbody = document.getElementById('abuseLogsBody');
             if (items.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;">暂无日志</td></tr>';
@@ -4441,13 +4444,14 @@ const getAdminHtml = (options = {}) => {
         const loadDashboard = async () => {
             const range = Number(document.getElementById('dashboardRange')?.value) || 24;
             const rangeLabel = dashboardRangeLabel(range);
-            const [statsRes, seriesRes, refsRes, cookiesRes, bansRes, logsRes] = await Promise.all([
+            const [statsRes, seriesRes, refsRes, cookiesRes, bansRes, logsRes, cacheRes] = await Promise.all([
                 api('/admin/api-logs/stats?hours=' + encodeURIComponent(range)).catch(() => null),
                 api('/admin/api-logs/timeseries?hours=' + encodeURIComponent(range)).catch(() => null),
                 api('/admin/api-logs/referers?hours=' + encodeURIComponent(range) + '&limit=6').catch(() => null),
                 api('/admin/cookies').catch(() => null),
                 api('/admin/abuse/bans').catch(() => null),
-                api('/admin/logs?limit=6').catch(() => null)
+                api('/admin/logs?limit=6').catch(() => null),
+                api('/admin/cache').catch(() => null)
             ]);
 
             const setText = (id, value) => {
@@ -4483,6 +4487,30 @@ const getAdminHtml = (options = {}) => {
 
             const refs = refsRes?.success ? refsRes.data : null;
             setText('kpiSources', refs ? refs.uniqueHosts : '-');
+
+            const cache = cacheRes?.success ? cacheRes.data : null;
+            if (cache) {
+                const cStats = cache.stats || {};
+                const cHits = Number(cStats.hits) || 0;
+                const cMisses = Number(cStats.misses) || 0;
+                const cTotal = cHits + cMisses;
+                if (cache.envLocked) {
+                    setText('kpiCacheHitRate', '已关闭');
+                    setText('kpiCacheHitRateSub', '被环境变量禁用');
+                } else if (!cache.enabled) {
+                    setText('kpiCacheHitRate', '已关闭');
+                    setText('kpiCacheHitRateSub', '缓存未启用');
+                } else if (cTotal) {
+                    setText('kpiCacheHitRate', ((cStats.hitRate || 0) * 100).toFixed(1) + '%');
+                    setText('kpiCacheHitRateSub', cHits + ' / ' + cMisses);
+                } else {
+                    setText('kpiCacheHitRate', '-');
+                    setText('kpiCacheHitRateSub', '暂无请求');
+                }
+            } else {
+                setText('kpiCacheHitRate', '-');
+                setText('kpiCacheHitRateSub', '加载失败');
+            }
 
             // 趋势折线图 + 请求类型饼图（跟随顶部数据范围）
             const series = seriesRes?.success ? seriesRes.data : [];

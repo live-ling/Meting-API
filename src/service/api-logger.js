@@ -18,8 +18,8 @@ import {
 
 const DATA_DIR = globalThis?.process?.env?.DATA_DIR || './data'
 const LOGS_FILE = 'api_logs.json'
-// 约 1000 请求/天，40000 条 ≈ 30 天余量；配合紧凑序列化（无缩进）控制文件体积
-const MAX_LOGS = 40000
+// 约 2250 请求/天（近 24h 实测 2248），70000 条 ≈ 31 天；配合紧凑序列化控制文件体积
+const MAX_LOGS = 70000
 
 /** @type {Array<{id:string, timestamp:number, ip:string, server:string, type:string, requestId:string, status:string, statusCode:number, durationMs:number, songName:string, songArtist:string, error:string, userAgent:string}>} */
 let logs = []
