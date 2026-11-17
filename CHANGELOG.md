@@ -2,6 +2,42 @@
 
 本项目的所有重要变更都记录在这里。
 
+## [Unreleased] - 2026-11-17
+
+### 修复：总调用统计有计数上限
+
+- 根因：`getStats().total` 直接取 `logs.length`，明细缓冲到 `MAX_LOGS` 就不再增长；
+  清空明细后更是直接归零。那个数字实际上是「窗口大小」，不是调用量。
+- 改为独立累加计数器（`src/service/api-logger.js` 的 `totals`）：每次 `addLog` 累加
+  `calls / success / error / byCode / byDay`，与明细缓冲完全解耦；明细怎么滚动、怎么清空都不影响。
+- 新增 `data/api_stats.json` 持久化（tmp + rename 原子写，约 125 字节），重启保留；
+  `byDay` 只留最近 120 天，避免文件无限增长。
+- 升级后的首次启动：若统计文件不存在，用现存明细兜底一次，不会从 0 重新数；
+  若文件存在但计数为 0（有人 `resetTotals()` 过），重启后尊重这个 0，不再拿明细补回来。
+- 清空明细（`clearLogs`）与清空累计数（`resetTotals`）分离：前者只减体积，后者才是抹掉历史。
+- `/api/stats` 与后台「API 调用日志」卡片改累计口径，新增 `data.retained`（当前保留明细条数）；
+  脚本不要用 `data.total` 以外的字段估算调用量，也不要用 CSV 导出行数当总量。
+
+### 修复：明细文件读不出来时会被静默覆盖
+
+- 之前 `JSON.parse` 失败或顶层不是数组时，`logs` 保持空数组且只打一行日志，
+  下一次防抖保存就把原文件写成 `[]`（或只剩新写入的那一条），历史明细直接消失。
+- 现在解析失败 / 顶层非数组时，先把原始字节另存为 `api_logs.corrupt-<时间戳>.json` 再以空明细启动，
+  日志里明确写出原因和另存后的文件名。
+
+### 变更：对外接口地址统一为唯一入口
+
+- 新增 `get_public_base()`（`src/util.js`）：默认 `https://meting.liveling.top`，可用 `PUBLIC_BASE` 覆盖。
+- 列表接口返回的 `url` / `pic` / `lrc` 字段、首页的基础地址与 AI 提示词全部改用它，
+  不再跟随 `Host` / `X-Forwarded-Host`：同一套服务挂两个域名时，同一个歌单不会再拼出两种地址。
+- `robots.txt` / `sitemap.xml` 仍按当前请求站点生成（它们描述的是「你正在访问的这个站」）。
+
+### 测试
+
+- 新增 `test/api-stats.test.js`（4 条）：累计数随 `addLog` 增长、清空明细不影响累计、
+  按日分解与落盘、明细文件损坏时生成 `api_logs.corrupt-*` 副本。
+- 全套 **17 个文件 / 161 条**通过。
+
 ## [Unreleased] - 2026-10-29
 
 ### 调整：API 日志上限与存储格式

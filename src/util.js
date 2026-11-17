@@ -53,6 +53,26 @@ export const getPathFromURL = (url, strict = true) => {
   return result;
 };
 
+/**
+ * 对外公开的接口根地址（唯一入口）。
+ *
+ * 只用于「生成给别人看的链接」：列表里的 url / pic / lrc 字段、首页与 AI 提示词里的 base。
+ * 与 get_url(c) 的区别：get_url 跟随请求的 Host / X-Forwarded-Host，同一套服务挂在两个
+ * 域名上时，同一个歌单会被拼出两种地址；这里固定成唯一入口，可用 PUBLIC_BASE 覆盖。
+ * robots / sitemap 这类描述「当前站点」的产物仍走 get_url。
+ */
+const DEFAULT_PUBLIC_BASE = 'https://meting.liveling.top'
+
+export const get_public_base = () => {
+  let raw = ''
+  try { raw = globalThis?.process?.env?.PUBLIC_BASE || '' } catch (_) {}
+  if (!raw) {
+    try { raw = globalThis?.Deno?.env?.get?.('PUBLIC_BASE') || '' } catch (_) {}
+  }
+  const base = String(raw || DEFAULT_PUBLIC_BASE).trim().replace(/\/+$/, '')
+  return base || DEFAULT_PUBLIC_BASE
+}
+
 export const get_runtime = () => {
 
   if (globalThis?.process?.env?.RUNTIME) {

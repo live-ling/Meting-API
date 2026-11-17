@@ -20,6 +20,9 @@ const DATA_DIR = globalThis?.process?.env?.DATA_DIR || './data'
 const LOGS_FILE = 'api_logs.json'
 // 约 2250 请求/天（近 24h 实测 2248），70000 条 ≈ 31 天；配合紧凑序列化控制文件体积
 const MAX_LOGS = 70000
+// 累计统计单文件（几十 KB），与明细分开存：明细可以滚动/清空，累计数不受影响
+const STATS_FILE = 'api_stats.json'
+const STATS_KEEP_DAYS = 120
 
 /** @type {Array<{id:string, timestamp:number, ip:string, server:string, type:string, requestId:string, status:string, statusCode:number, durationMs:number, songName:string, songArtist:string, error:string, userAgent:string}>} */
 let logs = []
@@ -27,6 +30,27 @@ let logs = []
 let saveTimer = null
 const SAVE_INTERVAL = 2000 // 防抖保存间隔
 let changed = false
+
+/**
+ * 累计计数（跨重启持久化，与明细缓冲解耦）。
+ *
+ * 之前「总调用数」直接取 logs.length，明细一到 MAX_LOGS 就不再增长，
+ * 清空明细后更是直接归零 —— 那不是真实调用量，只是一个窗口大小。
+ * 现在每次 addLog 都累加这里，明细怎么滚、怎么清都不影响。
+ */
+const emptyTotals = () => ({
+    calls: 0,
+    success: 0,
+    error: 0,
+    byCode: {}, // { '200': n, '302': n, '404': n … }
+    byDay: {}, // { '20261117': n } 本地日
+    firstAt: 0,
+    updatedAt: 0,
+})
+
+let totals = emptyTotals()
+let totalsTimer = null
+let totalsChanged = false
 
 // === 持久化 ===
 
@@ -38,19 +62,44 @@ const ensureDir = () => {
     } catch (_) {}
 }
 
+/**
+ * 明细文件读不出来时先另存一份再继续，绝不「静默从空开始然后把它覆盖掉」。
+ * 之前 JSON.parse 失败或顶层不是数组时 logs 保持空数组，下一次防抖保存就把原文件写没了。
+ */
+const quarantineLogsFile = (raw, reason) => {
+    try {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+        const target = path.join(DATA_DIR, `api_logs.corrupt-${stamp}.json`)
+        if (typeof raw === 'string' && raw) fs.writeFileSync(target, raw)
+        console.log(`[ApiLogger] 明细文件不可用（${reason}），已另存为 ${path.basename(target)}，本次以空明细启动`)
+    } catch (e) {
+        console.log('[ApiLogger] 另存损坏明细失败:', e.message)
+    }
+}
+
 const loadFromFile = () => {
     ensureDir()
     const filePath = path.join(DATA_DIR, LOGS_FILE)
+    if (!fs.existsSync(filePath)) return
+    let raw = ''
     try {
-        if (fs.existsSync(filePath)) {
-            const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
-            if (Array.isArray(data)) {
-                logs = data.slice(-MAX_LOGS)
-            }
-        }
+        raw = fs.readFileSync(filePath, 'utf-8')
     } catch (e) {
-        console.log('[ApiLogger] 加载日志失败:', e.message)
+        console.log('[ApiLogger] 读取日志失败:', e.message)
+        return
     }
+    let data
+    try {
+        data = JSON.parse(raw)
+    } catch (e) {
+        quarantineLogsFile(raw, `JSON 解析失败：${e.message}`)
+        return
+    }
+    if (!Array.isArray(data)) {
+        quarantineLogsFile(raw, '顶层不是数组')
+        return
+    }
+    logs = data.slice(-MAX_LOGS)
 }
 
 const saveToFile = () => {
@@ -72,9 +121,128 @@ const scheduleSave = () => {
     saveTimer = setTimeout(saveToFile, SAVE_INTERVAL)
 }
 
+// === 累计统计持久化 ===
+
+const countOf = (value) => {
+    const n = Number(value)
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+}
+
+/** 本地日键 YYYYMMDD，用于按日累计 */
+const statsDayKey = (timestamp) => {
+    const d = new Date(timestamp)
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${d.getFullYear()}${month}${day}`
+}
+
+const sanitizeTotals = (raw) => {
+    const next = emptyTotals()
+    if (!raw || typeof raw !== 'object') return next
+    next.calls = countOf(raw.calls)
+    next.success = countOf(raw.success)
+    next.error = countOf(raw.error)
+    next.firstAt = countOf(raw.firstAt)
+    next.updatedAt = countOf(raw.updatedAt)
+    for (const [key, value] of Object.entries(raw.byCode || {})) {
+        const n = countOf(value)
+        if (n) next.byCode[String(key).slice(0, 8)] = n
+    }
+    for (const [key, value] of Object.entries(raw.byDay || {})) {
+        const n = countOf(value)
+        if (n && /^\d{8}$/.test(String(key))) next.byDay[String(key)] = n
+    }
+    return next
+}
+
+function saveTotals() {
+    if (!totalsChanged) return
+    totalsChanged = false
+    ensureDir()
+    try {
+        const file = path.join(DATA_DIR, STATS_FILE)
+        const tmp = `${file}.tmp`
+        fs.writeFileSync(tmp, JSON.stringify(totals))
+        fs.renameSync(tmp, file)
+    } catch (e) {
+        console.log('[ApiLogger] 保存累计统计失败:', e.message)
+    }
+}
+
+const scheduleTotalsSave = () => {
+    totalsChanged = true
+    if (totalsTimer) clearTimeout(totalsTimer)
+    totalsTimer = setTimeout(saveTotals, SAVE_INTERVAL)
+}
+
+/** 按日计数只保留最近 STATS_KEEP_DAYS 天，避免文件无限增长 */
+const pruneTotalsDays = () => {
+    const keys = Object.keys(totals.byDay)
+    if (keys.length <= STATS_KEEP_DAYS) return
+    keys.sort()
+    for (const key of keys.slice(0, keys.length - STATS_KEEP_DAYS)) delete totals.byDay[key]
+}
+
+const bumpTotals = (log) => {
+    totals.calls += 1
+    if (log.status === 'success') totals.success += 1
+    else totals.error += 1
+    const code = String(log.statusCode || 0)
+    totals.byCode[code] = (totals.byCode[code] || 0) + 1
+    const day = statsDayKey(log.timestamp)
+    totals.byDay[day] = (totals.byDay[day] || 0) + 1
+    if (!totals.firstAt || log.timestamp < totals.firstAt) totals.firstAt = log.timestamp
+    totals.updatedAt = Date.now()
+    pruneTotalsDays()
+    scheduleTotalsSave()
+}
+
+const loadTotals = () => {
+    ensureDir()
+    const file = path.join(DATA_DIR, STATS_FILE)
+    let existed = false
+    try {
+        existed = fs.existsSync(file)
+        if (existed) {
+            totals = sanitizeTotals(JSON.parse(fs.readFileSync(file, 'utf-8')))
+        }
+    } catch (e) {
+        console.log('[ApiLogger] 加载累计统计失败:', e.message)
+    }
+    // 只在「统计文件从来不存在」时用现存明细兜底（升级到本版本后的首次启动）。
+    // 文件存在但计数为 0 = 有人主动 reset 过，重启后要尊重这个 0，不能又拿明细补回来。
+    if (!existed && logs.length > 0) {
+        const seed = emptyTotals()
+        for (const log of logs) {
+            seed.calls += 1
+            if (log.status === 'success') seed.success += 1
+            else seed.error += 1
+            const code = String(log.statusCode || 0)
+            seed.byCode[code] = (seed.byCode[code] || 0) + 1
+            const day = statsDayKey(log.timestamp)
+            seed.byDay[day] = (seed.byDay[day] || 0) + 1
+            if (!seed.firstAt || log.timestamp < seed.firstAt) seed.firstAt = log.timestamp
+        }
+        seed.updatedAt = Date.now()
+        totals = seed
+        pruneTotalsDays()
+        totalsChanged = true
+        saveTotals()
+    }
+}
+
+/** 只清累计数（运维用；清空明细不会调用它） */
+const resetTotals = () => {
+    totals = emptyTotals()
+    totalsChanged = true
+    saveTotals()
+    return true
+}
+
 // === 初始化 ===
 
 loadFromFile()
+loadTotals()
 
 /** 用本地 IP 缓存补齐磁盘上还没有归属地的旧日志，避免打开页面时一片「待解析」。 */
 const hydrateCachedGeo = () => {
@@ -161,6 +329,7 @@ const addLog = (entry) => {
     if (logs.length > MAX_LOGS * 1.5) {
         logs = logs.slice(-MAX_LOGS)
     }
+    bumpTotals(log)
     scheduleSave()
 
     // 不在 /api 响应链路里等待网络：命中缓存则上面已填好，未命中才后台查
@@ -399,7 +568,10 @@ const getStats = ({ hours = 24 } = {}) => {
     const uniqueIPs24h = span === 24 ? uniqueIPs : new Set(last24hLogs.map(l => l.ip)).size
 
     return {
-        total: logs.length,
+        // 累计口径：来自独立计数器，不受明细上限与清空影响
+        total: totals.calls,
+        // 当前保留的明细条数（受 MAX_LOGS 与清空影响）
+        retained: logs.length,
         hours: span,
         rangeCount: recent.length,
         uniqueIPs,
@@ -409,6 +581,15 @@ const getStats = ({ hours = 24 } = {}) => {
         byServer,
         byType,
         byStatus,
+        totals: {
+            calls: totals.calls,
+            success: totals.success,
+            error: totals.error,
+            byCode: { ...totals.byCode },
+            byDay: { ...totals.byDay },
+            firstAt: totals.firstAt,
+            updatedAt: totals.updatedAt,
+        },
     }
 }
 
@@ -607,6 +788,7 @@ const getTimeseries = ({ hours = 24 } = {}) => {
 // === 清理 ===
 
 const clearLogs = () => {
+    // 只清明细，累计数（totals）保持不动：清日志是「减少体积」，不是「抹掉历史调用量」
     logs = []
     changed = true
     saveToFile()
@@ -668,6 +850,7 @@ export default {
     getRefererStats,
     getTimeseries,
     clearLogs,
+    resetTotals,
     exportCSV,
     getClientIP,
     extractSongInfo,

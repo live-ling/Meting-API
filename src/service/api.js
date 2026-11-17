@@ -13,7 +13,7 @@
  */
 import Providers from '../providers/index.js'
 import { UpstreamError } from '../providers/errors.js'
-import { format as lyricFormat, get_url } from '../util.js'
+import { format as lyricFormat, get_public_base } from '../util.js'
 import store from '../admin/store.js'
 import apiLogger from './api-logger.js'
 import cache from './api-cache.js'
@@ -78,8 +78,8 @@ const resolveParams = (query) => {
     return { server, type, id, quality, provider, param }
 }
 
-/** 把 provider 返回的相对线索（歌曲 id）拼成可请求的绝对地址 */
-const absolutize = (list, server, ctx, quality = DEFAULT_QUALITY) => list.map(item => {
+/** 把 provider 返回的相对线索（歌曲 id）拼成可请求的绝对地址（统一用唯一入口地址） */
+const absolutize = (list, server, quality = DEFAULT_QUALITY) => list.map(item => {
     const next = { ...item }
     for (const key of ['url', 'pic', 'lrc']) {
         const raw = next[key]
@@ -92,7 +92,7 @@ const absolutize = (list, server, ctx, quality = DEFAULT_QUALITY) => list.map(it
         const qualityQuery = key === 'url' && quality !== DEFAULT_QUALITY
             ? `&quality=${encodeURIComponent(quality)}`
             : ''
-        next[key] = `${get_url(ctx)}?server=${server}&type=${key}&id=${encodeURIComponent(value)}${qualityQuery}`
+        next[key] = `${get_public_base()}/api?server=${server}&type=${key}&id=${encodeURIComponent(value)}${qualityQuery}`
     }
     return next
 })
@@ -235,7 +235,7 @@ export default async (ctx) => {
         songArtist = info.artist
 
         log({ statusCode: 200 })
-        return ctx.json(absolutize(data, server, ctx, quality))
+        return ctx.json(absolutize(data, server, quality))
     } catch (e) {
         // 只有 provider 主动抛出的 UpstreamError 才把原因告诉调用方，
         // 其余异常一律收敛成通用 500，避免把内部细节透出去。

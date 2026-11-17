@@ -137,6 +137,7 @@ docker run -d --name meting \
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `PORT` | `3000` | 服务监听端口 |
+| `PUBLIC_BASE` | `https://meting.liveling.top` | 对外唯一入口地址。列表里的 `url`/`pic`/`lrc` 字段、首页与 AI 提示词都用它拼；不跟随请求域名，多域名指同一套服务时链接不会分裂 |
 | `OVERSEAS` | `false` | 海外模式。Vercel/Cloudflare 运行时自动设为 `true` |
 | `ADMIN_PATH` | `admin` | 管理后台路径。如设为 `secret-admin`，则后台地址为 `/secret-admin` |
 | `DATA_DIR` | `./data` | 数据存储目录 |
@@ -227,7 +228,7 @@ GET /api?server=tencent&type=lrc&id=004Yi5BD3ksoAN
 |------|------|
 | `/robots.txt` | 自动生成，`Disallow: /api` 与后台路径（后台路径随 `ADMIN_PATH` 变化） |
 | `/sitemap.xml` | 仅包含 `/` 与 `/test` |
-| `/api/stats` | 累计与近 24 小时调用统计，含缓存命中率 `data.cache` |
+| `/api/stats` | 累计调用统计（`data.total` 为跨重启累加值，`data.retained` 为当前保留的明细条数，`data.totals` 含 `success`/`error`/`byCode`/`byDay`）+ 近 24 小时统计 + 缓存命中率 `data.cache` |
 
 ## 管理后台
 

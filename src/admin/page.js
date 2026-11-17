@@ -2518,8 +2518,9 @@ const getAdminHtml = (options = {}) => {
                             <div class="stat-card"><div class="stat-label">总调用数</div><div class="stat-value" id="apiLogTotal">-</div></div>
                             <div class="stat-card"><div class="stat-label">24h 调用</div><div class="stat-value" id="apiLog24h">-</div></div>
                             <div class="stat-card"><div class="stat-label">独立 IP</div><div class="stat-value" id="apiLogIPs">-</div></div>
-                            <div class="stat-card"><div class="stat-label">成功数</div><div class="stat-value" id="apiLogSuccess">-</div></div>
+                            <div class="stat-card"><div class="stat-label">累计成功</div><div class="stat-value" id="apiLogSuccess">-</div></div>
                         </div>
+                        <p id="apiLogNote" style="margin:12px 0 0;font-size:12px;color:var(--text-secondary);">累计口径，不受明细上限与清空影响。</p>
                     </div>
                     <div class="card">
                         <div class="card-header">
@@ -4976,7 +4977,15 @@ const getAdminHtml = (options = {}) => {
                 document.getElementById('apiLogTotal').textContent = d.total || 0;
                 document.getElementById('apiLog24h').textContent = d.last24h || 0;
                 document.getElementById('apiLogIPs').textContent = d.uniqueIPs24h || 0;
-                document.getElementById('apiLogSuccess').textContent = (d.byStatus?.success || 0);
+                const totals = d.totals || {};
+                document.getElementById('apiLogSuccess').textContent = totals.success ?? d.byStatus?.success ?? 0;
+                const note = document.getElementById('apiLogNote');
+                if (note) {
+                    const since = totals.firstAt ? new Date(totals.firstAt).toLocaleString('zh-CN') : '';
+                    const retained = d.retained ?? 0;
+                    note.textContent = '累计口径' + (since ? '（自 ' + since + ' 起）' : '')
+                        + '，不受明细上限与清空影响；当前保留明细 ' + retained + ' 条。';
+                }
             } catch (_) {}
         };
 
