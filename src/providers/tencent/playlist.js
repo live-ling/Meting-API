@@ -1,6 +1,7 @@
 import config from "../../config.js"
 import { get_song_url } from "./song.js"
 import { changeUrlQuery } from "./util.js"
+import { UpstreamError } from "../errors.js"
 
 const parseCookieString = (cookieString) => {
     if (!cookieString) return {}
@@ -36,7 +37,13 @@ const get_playlist = async (id, cookie = '') => {
     let result = await fetch(url, { headers });
 
     result = await result.json()
-    result = result.cdlist[0].songlist
+    // 歌单不存在或上游结构异常时 cdlist 为空/缺字段，
+    // 直接索引会炸成 TypeError → /api 500。收敛成 502（上游异常）。
+    const songlist = result?.cdlist?.[0]?.songlist
+    if (!Array.isArray(songlist)) {
+        throw new UpstreamError('歌单不存在或上游返回异常', 502)
+    }
+    result = songlist
 
     let jsonp
     if (config.OVERSEAS) {

@@ -19,6 +19,7 @@ import apiLogger from './api-logger.js'
 import cache from './api-cache.js'
 import config from '../config.js'
 import { DEFAULT_QUALITY, QUALITY_ALIASES, QUALITY_VALUES } from './quality-values.js'
+import { recordUrlSuccess, getEffectiveAbuseConfig } from '../middleware/abuse-detector.js'
 
 const providers = new Providers()
 
@@ -57,7 +58,9 @@ class ParamError extends Error {
 const resolveParams = (query) => {
     const server = query.server || DEFAULT_SERVER
     const type = query.type || DEFAULT_TYPE
-    const id = query.id || DEFAULT_ID
+    // keyword= 是 id= 的别名（线上 55 次调用来自其他音乐 API 的文档习惯）：
+    // 两者同时出现时 id 优先（显式优于隐式）。limit 不支持，search 固定 30 条。
+    const id = query.id || query.keyword || DEFAULT_ID
     const quality = normalizeQuality(query.quality)
     const param = { server, type, id }
     if (query.quality !== undefined) param.quality = quality
@@ -68,11 +71,25 @@ const resolveParams = (query) => {
     }
 
     if (type === 'search') {
+        // search 必须有关键词：缺省/空串时 id 会落默认值（一个歌单号），
+        // 空关键词打到上游会返回一堆无关结果。id= 或 keyword= 均可。
+        if (!query.id && !query.keyword) {
+            throw new ParamError('search 需要关键词：请使用 id= 或 keyword= 传递', param)
+        }
+        if (!String(id).trim()) {
+            throw new ParamError('search 关键词不能为空', param)
+        }
         if (id.length > MAX_ID_LENGTH) throw new ParamError('id 参数过长')
         if (SEARCH_FORBIDDEN.test(id)) throw new ParamError('id 参数包含非法字符')
     } else {
         if (!ID_PATTERN.test(id)) throw new ParamError('id 参数包含非法字符', param)
         if (id.length > MAX_ID_LENGTH) throw new ParamError('id 参数过长')
+        // 逗号多 id 只对列表型（song）是合法的；playlist/album/artist/lrc/url/pic
+        // 只能取单个对象，多 id 会在 provider 内炸成 500（线上 4 次实测）。
+        // 在校验层拦下，别让坏请求到达 provider。
+        if (id.includes(',') && type !== 'song') {
+            throw new ParamError(`type=${type} 不支持逗号批量 id（仅 type=song 支持）`, param)
+        }
     }
 
     return { server, type, id, quality, provider, param }
@@ -198,6 +215,12 @@ export default async (ctx) => {
                 return ctx.json({ error: 'no url' })
             }
             log({ statusCode: 302 })
+            // url 成功配额计数：只有真正解析出直链（302）才消耗配额。
+            // 键 = ip + server + id，同一首歌重复播放/重试不重复扣；
+            // 预检在 abuse-detector 中间件，超限时那里直接 429，请求到不了这里。
+            try {
+                recordUrlSuccess(ip, server, id, getEffectiveAbuseConfig())
+            } catch { /* 配额失败不影响正常响应 */ }
             return ctx.redirect(url)
         }
 

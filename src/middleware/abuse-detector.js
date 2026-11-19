@@ -42,6 +42,14 @@ const DEFAULT_CONFIG = {
         // 单人使用远低于该额度；多设备重度使用可在后台调高或关闭。
         unknownSharedDailyLimit: 200,
     },
+    // type=url 成功配额：只有真正 302 解析出直链才计数（消耗账号风控信誉的动作）。
+    // 键 = ip + server + id（歌曲对）：同一首歌重复播放/重试不重复扣，
+    // 真实用户听歌间隔 ≥3 分钟，物理上碰不到线；脚本同秒刷十几个不同 id 立刻撞线。
+    urlSuccessQuota: {
+        enabled: true,
+        windowMs: 60000,
+        max: 20,
+    },
     blockedUserAgents: ['YisouSpider'],
     whitelist: {
         paths: ['/health', '/favicon.ico', '/', '/test'],
@@ -85,6 +93,49 @@ const requestRecords = new Map()
 const bannedIPs = new Map()
 // 按日配额: ip -> { day: YYYYMMDD, count }
 const searchQuota = new Map()
+// url 成功配额: ip -> { windowStart, pairs: Map<"server|id", true> }
+const urlSuccessQuota = new Map()
+
+/** url 成功配额的滑动窗口记录（惰性创建） */
+const getUrlQuotaRecord = (ip, now, windowMs) => {
+    let record = urlSuccessQuota.get(ip)
+    if (!record || now - record.windowStart >= windowMs) {
+        record = { windowStart: now, pairs: new Map() }
+        urlSuccessQuota.set(ip, record)
+    }
+    return record
+}
+
+/**
+ * 预检：该 ip 再取一个【新】server+id 是否会超 url 成功配额。
+ * 已计过的歌曲对永远放行（重试/重复播放不算新的消耗）。
+ * 返回 null 放行，否则返回 Retry-After 秒数。
+ */
+export const checkUrlSuccessQuota = (ip, server, id, config, now = Date.now()) => {
+    const q = config.urlSuccessQuota || DEFAULT_CONFIG.urlSuccessQuota
+    if (q.enabled === false) return null
+    const windowMs = q.windowMs || DEFAULT_CONFIG.urlSuccessQuota.windowMs
+    const max = q.max || DEFAULT_CONFIG.urlSuccessQuota.max
+    const record = getUrlQuotaRecord(ip, now, windowMs)
+    if (record.pairs.has(`${server}|${id}`)) return null
+    if (record.pairs.size < max) return null
+    return Math.max(1, Math.ceil((record.windowStart + windowMs - now) / 1000))
+}
+
+/**
+ * 计数：一次 type=url 成功（302）后调用。
+ * 返回 true 表示本次计入了配额（新歌曲对），调用方无需关心细节。
+ */
+export const recordUrlSuccess = (ip, server, id, config, now = Date.now()) => {
+    const q = config.urlSuccessQuota || DEFAULT_CONFIG.urlSuccessQuota
+    if (q.enabled === false) return false
+    const windowMs = q.windowMs || DEFAULT_CONFIG.urlSuccessQuota.windowMs
+    const record = getUrlQuotaRecord(ip, now, windowMs)
+    const key = `${server}|${id}`
+    if (record.pairs.has(key)) return false
+    record.pairs.set(key, true)
+    return true
+}
 
 /** 本地日期键，用于「每日」配额的翻页判断 */
 const dayKey = (time = Date.now()) => {
@@ -369,6 +420,13 @@ const cleanupExpired = (config) => {
     for (const [ip, record] of searchQuota) {
         if (record.day !== today) searchQuota.delete(ip)
     }
+    // url 成功配额：窗口过期即弃（窗口默认 60s，5 分钟清理一次足够）
+    const urlWindowMs = (config?.urlSuccessQuota?.windowMs || DEFAULT_CONFIG.urlSuccessQuota.windowMs) * 2
+    for (const [ip, record] of urlSuccessQuota) {
+        if (now - record.windowStart > urlWindowMs) {
+            urlSuccessQuota.delete(ip)
+        }
+    }
 }
 
 const detectAbuse = (c, ip, path, config) => {
@@ -607,7 +665,8 @@ export const abuseDetectorMiddleware = async (c, next) => {
         }
 
         // search 日配额：QPS 限流对「每分钟 1~2 次、持续数天」的慢速刷接口无效
-        if (new URL(c.req.url).searchParams.get('type') === 'search') {
+        const params = new URL(c.req.url).searchParams
+        if (params.get('type') === 'search') {
             const retryAfter = consumeSearchQuota(ip, config, Date.now())
             if (retryAfter !== null) {
                 await store.addAbuseLog({
@@ -624,6 +683,30 @@ export const abuseDetectorMiddleware = async (c, next) => {
                 return c.json({
                     error: 'Too Many Requests',
                     message: `search 每日配额已用尽（${limit} 次），请在次日 00:00 后重试`,
+                    retryAfter,
+                }, 429, { 'Retry-After': String(retryAfter) })
+            }
+        }
+
+        // url 成功配额预检：只有「新的 server+id 且窗口已满」才拦，
+        // 同一首歌的重试/重复播放永远放行（api.js 在 302 成功时才会计数）
+        if (params.get('type') === 'url') {
+            const retryAfter = checkUrlSuccessQuota(ip, params.get('server') || 'tencent', params.get('id') || '', config)
+            if (retryAfter !== null) {
+                const q = config.urlSuccessQuota || DEFAULT_CONFIG.urlSuccessQuota
+                await store.addAbuseLog({
+                    ip,
+                    path,
+                    method: c.req.method,
+                    level: 'medium',
+                    reason: 'url_success_quota',
+                    violations: [],
+                    userAgent: c.req.header('User-Agent') || '',
+                    blocked: true,
+                }).catch(() => {})
+                return c.json({
+                    error: 'Too Many Requests',
+                    message: `直链解析请求过于频繁（每 ${Math.round((q.windowMs || 60000) / 1000)} 秒最多 ${q.max || 20} 首不同歌曲），请稍后再试`,
                     retryAfter,
                 }, 429, { 'Retry-After': String(retryAfter) })
             }

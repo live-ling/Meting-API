@@ -34,7 +34,7 @@ const FEATURES = [
     },
     {
         title: '缓存与限流已内置',
-        text: '按类型分 TTL 缓存，命中打 X-Cache；被限流时返回 429 和 Retry-After，不静默失败。',
+        text: '按类型分 TTL 缓存，命中打 X-Cache；限流带 429 和 Retry-After，type=url 按「成功解析」计数，重试和重复播放不消耗额度。',
     },
     {
         title: '随处可部署',
@@ -168,7 +168,7 @@ export function quickStartSection({ base, capabilities }) {
     return `<section class="section" id="quickstart" aria-labelledby="quickstart-title">
             ${sectionHead({
         id: 'quickstart-title', title: '快速上手',
-        note: `把 id 换成你自己的就能用。标了 302 的链接会直接跳转到音频或图片文件；音频链接可追加 quality=lossless 等参数，${qualityCountLabel()}规格见「音质档位」。`,
+        note: `把 id 换成你自己的就能用。标了 302 的链接会直接跳转到音频或图片文件；音频链接可追加 quality=lossless 等参数，${qualityCountLabel()}规格见「音质档位」。type=search 的关键词用 id= 或 keyword= 传均可。`,
     })}
             <ol class="quick-list">
                 ${items}
@@ -313,6 +313,9 @@ export function contractSection() {
                         <li>song / playlist / album / artist / search：返回一组数据，顺序与请求的 id 一致。</li>
                         <li>lrc：返回歌词原文，用 <code>response.text()</code> 读。</li>
                         <li>url / pic：302 跳转，跟着跳就能拿到音频或图片。</li>
+                        <li>被限流时返回 429（带 <code>Retry-After</code>）：全局 60 次/分钟；
+                            <code>type=url</code> 另有成功配额——每 60 秒最多 20 首<b>不同</b>歌曲可解析出直链，
+                            同一首重复播放不占额度，正常听歌永远碰不到线。</li>
                         <li>参数不对、没有可用地址、服务出错：分别返回 400 / 403 / 500 的 JSON。</li>
                         <li>字段值有时是字符串、有时是数组，拿到什么处理什么，别写死。</li>
                     </ol>

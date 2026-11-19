@@ -1,5 +1,6 @@
 import { request } from "./util.js"
 import { map_song_list } from "./util.js"
+import { UpstreamError } from "../errors.js"
 
 /**
  * 直链规范化（对齐原始 Meting-API 的处理）：
@@ -72,7 +73,9 @@ export const get_song_info = async (id, cookie = '') => {
     })
 
     if (!res.songs) {
-        throw res
+        // 上游拒绝（含逗号多 id 被上游判参数错误）时 res 是 { msg, code }，
+        // 原样 throw 会在 /api 收敛成 500。改成 502（上游异常）。
+        throw new UpstreamError(res?.msg || '歌曲详情查询失败', 502)
     }
 
     res = map_song_list(res)

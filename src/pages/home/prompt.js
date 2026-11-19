@@ -106,15 +106,26 @@ ${matrixTable({ columns, rows })}
   · lrc → text/plain 歌词
   · url → 302 跳转到音频文件（可加 quality 选音质，见下文「3) 音频」）
   · pic → 302 跳转到封面图片
-- id 规则：type=search 时 id 是关键词（中文可以，长度 ≤256）；
+- id 规则：type=search 时 id 是关键词（中文可以，长度 ≤256），
+  也接受 keyword= 作为别名（两者并存时 id 优先）；limit= 不支持，固定返回 30 条。
   其他类型只允许字母、数字、下划线、逗号、连字符（长度 ≤256）。
   实测过的两条硬校验（提前在本地拦住，能省一次 400 往返）：
   · 关键词含 < > { } \\ 或控制字符 → 400 "id 参数包含非法字符"
   · 非 search 的 id 含空白字符（包括「逗号后加空格」）→ 400 "id 参数包含非法字符"
+  · search 缺省/空关键词 → 400（id= 或 keyword= 传一个即可；空关键词不会回随机结果）
+  · 逗号多 id 仅 type=song 支持；playlist/url/lrc/pic 带逗号 → 400
 - 不同平台的 id 互不通用（网易云是数字串，酷狗是 32 位 hash），换 server 必须同时换 id。
 - search 的返回同样是歌曲数组，字段与其他列表类型一致。
 - 响应头 X-Cache: HIT / MISS 只用于调试，不影响数据。
 - 未知的 query 参数（历史上 MetingJS 会带 auth、r）会被忽略，不影响响应。
+- 限流事实（写客户端时必须遵守，不是建议）：
+  · /api 全局限流 60 次/分钟/IP，type=search 另有 300 次/日配额；
+  · type=url 有「成功配额」：每 60 秒最多 20 首【不同】歌曲能解析出直链（302），
+    同一首歌重复播放/重试不重复计数——正常听歌（间隔 ≥3 分钟）永远碰不到线，
+    只有「短时间批量解析大量不同 id」会撞 429；
+  · 一次加载 N 首歌 ≈ N×3 次请求（url+lrc+pic），12 首就逼近限流一半；
+  · 所以禁止「整批预取所有歌的直链」：url 只在该曲即将播放前请求，lrc/pic 同理按需；
+  · 任何请求失败都不要立刻整批重排重试——这正是线上 429 的最大来源。
 
 # 2. 契约：这几条只能照写，不要用「通常做法」
 1) getAudioUrl(id, { quality }) 与 getCover(id) 返回的是**本 API 的链接字符串**（同步返回，不发请求）。
@@ -133,6 +144,9 @@ ${matrixTable({ columns, rows })}
 7) 302 不是错误，404 也不代表「接口挂了」：
    · type=url / pic 的 302 是正常成功；
    · 404 {"error":"no url"} = 这首歌没有直链，按「这首不可播」提示即可，不要整体报错、不要重试。
+8) 歌单返回几十首时，只把 url 字段当「链接模板」存着，不要循环 fetch 全部解析直链：
+   播放到第 N 首才请求第 N 首的 type=url；列表渲染只用 title/author/pic/lrc，
+   pic 交给 <img src> 让浏览器懒加载（loading="lazy"），不主动 fetch。
 
 # 3. 真实请求与响应
 1) 歌单
@@ -177,7 +191,9 @@ ${matrixTable({ columns, rows })}
    400 {"status":400,"message":"server 参数不合法","param":{"server":"…","type":"…","id":"…"}}
    404 {"error":"no url"} 或 {"error":"no pic"}
    403 被 UA 拦截规则拒绝（浏览器无法修改 User-Agent，遇到就如实提示，不要尝试改头）
-   429 带 Retry-After 响应头（秒数或 HTTP 日期）
+   429 带 Retry-After 响应头（秒数或 HTTP 日期）：出现即说明节奏超限，
+   正确响应是「停 + 等 Retry-After」，错误响应是「重排队列立刻再来」——
+   后者会被限流持续压制，且累计违规可能被封禁 1 小时。
    500 {"error":"internal server error"}
    502 {"error":"upstream unavailable","message":"…"} 上游故障
    同一条规则适用于所有 server：上游下线的平台（如 baidu / kuwo）会稳定返回 502，不是你的代码问题。
@@ -195,7 +211,8 @@ ${matrixTable({ columns, rows })}
 # 5. 运行时规则（必须实现）
 1. 按需请求：页面初始化不发请求，用户操作后再发。
 2. 串行队列：同一时刻只允许一个在途请求；两次请求开始时间间隔 ≥1500ms；
-   相同 server+type+id+quality 去重并缓存（LRU，最多 32 条；单条响应 >2MB 不缓存）。
+   相同 server+type+id+quality 去重并缓存（LRU，最多 32 条；单条响应 >2MB 不缓存）；
+   禁止启动时预解析整个歌单的直链。
 3. 429：读 Retry-After 进入冷却，期间禁用触发请求的控件并显示倒计时；
    到期后由用户手动重试，禁止自动重试或定时轮询。
    Retry-After 可能是秒数、HTTP 日期，也可能是「距次日零点的秒数」（最长约 86400），
